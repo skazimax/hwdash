@@ -1,0 +1,13 @@
+[Unit]
+Description=hwdash — hardware temperature and load dashboard
+After=network-online.target
+
+[Service]
+ExecStart=@PYTHON@ @DIR@/hwdash.py
+Restart=on-failure
+RestartSec=5
+Nice=10
+MemoryMax=128M
+
+[Install]
+WantedBy=default.target

@@ -1,0 +1,36 @@
+# hwdash configuration. Copy to ~/.config/hwdash/config.toml (picked up
+# automatically) or pass with --config. Every option is optional.
+
+[server]
+# bind = "0.0.0.0"          # "127.0.0.1" to allow only local / SSH-tunnel access
+# port = 8090
+# step = 10                 # seconds between samples
+# retention_hours = 168     # history kept for baselines and the 7d range (~80 MB at step 10)
+# db = "~/.local/share/hwdash/metrics.db"
+# ui_config = "~/.config/hwdash/ui.json"   # tile settings made in the browser
+# title = ""                # page title; empty = hostname
+# disk_mount = "/"          # filesystem shown in the Disk card
+# disk = ""                 # block device for I/O rates; empty = the one holding disk_mount
+
+# Per-sensor defaults. The key is the sensor id shown at the bottom of each tile
+# in Customize mode: "t:<driver>/<label>" for temperatures, "f:<driver>/<label>"
+# for fans, "t:gpu" for the NVIDIA GPU. A repeated driver+label gets "#2", "#3".
+# Fields: title, group (cpu | gpu | board | memory | storage | net | fans | other),
+# warn (°C: orange from 90 % of it, red at it), focus (large tile at the top), hidden.
+# Names, visibility and size changed in the browser take precedence over these.
+
+# Example: motherboard Super I/O channels identified with a load test.
+# [sensors."t:nct6687/Thermistor 15"]
+# title = "CPU VRM"
+# warn = 95
+# focus = true
+#
+# [sensors."t:nct6687/Thermistor 0"]
+# title = "Chipset"
+# warn = 90
+#
+# [sensors."t:nct6687/AMD TSI Addr 98h"]
+# hidden = true             # duplicates the CPU sensor
+#
+# [sensors."f:nct6687/fan1"]
+# title = "CPU fan"

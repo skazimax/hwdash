@@ -1,0 +1,541 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>hwdash</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M1 11h3l2-6 3 9 2-5h4' fill='none' stroke='%234ea1ff' stroke-width='2'/%3E%3C/svg%3E">
+<style>
+:root {
+  --bg: #0f1115; --card: #171a21; --line: #262b35; --text: #e6e8eb;
+  --muted: #9aa3ad; --faint: #8b95a1; --accent: #4ea1ff; --warm: #ff9f43;
+  --hot: #ff6b6b; --ok: #5fd3a8; --btn: #2b3240; --base: #c9d1db;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.4 Inter, system-ui, sans-serif; }
+.wrap { max-width: 1240px; margin: 0 auto; padding: 24px 16px; display: flex; flex-direction: column; gap: 28px; }
+header { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; }
+h1 { margin: 0; font-size: 24px; font-weight: 650; }
+.sub, .status { font-size: 13px; color: var(--muted); }
+.status.bad { color: var(--hot); }
+.title { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+.tools { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+.seg { display: flex; background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 3px; }
+.seg button, .btn { border: 0; border-radius: 6px; min-height: 32px; padding: 4px 14px; font: inherit; font-size: 13px;
+  cursor: pointer; background: transparent; color: var(--muted); }
+.seg button[aria-pressed="true"] { background: var(--btn); color: #fff; }
+.btn { background: var(--card); border: 1px solid var(--line); color: var(--text); min-height: 40px; }
+.btn[aria-pressed="true"], .btn.primary { background: var(--accent); border-color: var(--accent); color: #0b0d10; font-weight: 600; }
+.banner { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px;
+  background: #1b2433; border: 1px solid #2c3d57; border-radius: 10px; padding: 12px 16px; font-size: 13px; color: #c7d3e3; }
+.banner div { display: flex; gap: 8px; }
+.banner[hidden] { display: none; }
+h2 { margin: 0 0 12px; font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
+h3 { margin: 0 0 8px; font-size: 12px; font-weight: 600; color: var(--faint); }
+
+/* Tiles: standard, hero (Overview), load */
+.tile { all: unset; cursor: pointer; background: var(--card); border: 1px solid var(--line); border-radius: 12px;
+  padding: 14px 16px 10px; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.tile:hover { border-color: #3a4252; }
+.tile:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.editing .tile { cursor: default; }
+.tile.off { opacity: .45; }
+.row { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.name { font-size: 13px; color: #b8c0c9; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.src { font-size: 11px; color: var(--faint); white-space: nowrap; }
+.val { display: flex; flex-wrap: wrap; align-items: baseline; column-gap: 8px; }
+.big { font-size: 28px; font-weight: 650; font-variant-numeric: tabular-nums; }
+.unit { font-size: 13px; color: var(--muted); margin-left: 4px; }
+.dev { font-size: 12px; color: var(--faint); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.dev.up { color: #ffb86b; }
+.mm { font-size: 11px; color: var(--faint); font-variant-numeric: tabular-nums; }
+.row.mm { flex-wrap: wrap; column-gap: 10px; }
+.mm span { white-space: nowrap; }
+.warm .big { color: #ffb86b; } .hot .big { color: var(--hot); }
+.spark { width: 100%; height: 36px; display: block; }
+
+.hero-grid { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); }
+.hero { padding: 20px 22px 14px; gap: 10px; border-color: #2f3644; background: #1a1e26; }
+.hero .name { font-size: 16px; font-weight: 600; color: var(--text); }
+.hero .big { font-size: 56px; line-height: 1; letter-spacing: -0.02em; }
+.hero .unit { font-size: 18px; }
+.hero .dev { font-size: 13px; }
+.hero .spark { height: 84px; }
+.hero .mm { font-size: 12px; }
+.pill { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; padding: 3px 10px;
+  border-radius: 999px; background: rgba(95, 211, 168, .12); color: var(--ok); white-space: nowrap; }
+.pill::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+.warm .pill { background: rgba(255, 159, 67, .14); color: #ffb86b; }
+.hot .pill { background: rgba(255, 107, 107, .14); color: var(--hot); }
+
+.load-grid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); }
+.load .spark { height: 44px; }
+.cname { font-size: 15px; font-weight: 600; }
+.cbig { font-size: 28px; font-weight: 650; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.extra { font-size: 12px; color: #b8c0c9; text-align: right; min-width: 0; }
+.bar { height: 6px; background: var(--line); border-radius: 3px; overflow: hidden; }
+.bar div { height: 100%; background: var(--accent); border-radius: 3px; }
+
+/* Sensor groups sit side by side while they fit; a group's width follows its tile count */
+.groups { display: flex; flex-wrap: wrap; gap: 20px 16px; }
+.group { min-width: 0; }
+.gtiles { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); }
+
+.edit { display: flex; flex-direction: column; gap: 6px; }
+.edit .checks { display: flex; flex-wrap: wrap; gap: 4px 16px; }
+.edit label { display: flex; align-items: center; gap: 8px; font-size: 13px; color: #b8c0c9; min-height: 32px; cursor: pointer; }
+.edit input[type=checkbox] { width: 18px; height: 18px; accent-color: var(--accent); }
+.edit input[type=text] { width: 100%; min-height: 40px; background: #0f1115; border: 1px solid var(--line); border-radius: 8px;
+  color: var(--text); font: inherit; padding: 6px 10px; }
+.edit input[type=text]:focus { outline: 2px solid var(--accent); border-color: transparent; }
+.hint { font-size: 11px; color: var(--faint); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.note { font-size: 12px; color: var(--faint); }
+
+dialog { background: var(--card); color: var(--text); border: 1px solid var(--line); border-radius: 14px;
+  padding: 20px; width: min(960px, calc(100vw - 32px)); }
+dialog::backdrop { background: rgba(0, 0, 0, .6); }
+.dhead { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-bottom: 12px; }
+.dhead h3 { margin: 0; font-size: 18px; color: var(--text); }
+.close { border: 1px solid var(--line); background: transparent; color: var(--text); border-radius: 8px;
+  min-width: 44px; min-height: 44px; font-size: 20px; cursor: pointer; }
+.chart { position: relative; }
+.chart svg { width: 100%; height: 300px; display: block; }
+.tip { position: absolute; top: 4px; pointer-events: none; background: #0b0d10; border: 1px solid var(--line);
+  border-radius: 6px; padding: 4px 8px; font-size: 12px; font-variant-numeric: tabular-nums; white-space: nowrap; display: none; }
+.axis { display: flex; justify-content: space-between; font-size: 11px; color: var(--faint); margin-top: 6px; }
+.legend { display: flex; flex-wrap: wrap; gap: 16px; font-size: 12px; color: var(--muted); margin-top: 12px; }
+.legend span { display: flex; align-items: center; gap: 6px; }
+.sw { width: 18px; height: 0; border-top: 2px solid var(--accent); }
+.sw.base { border-top: 2px dashed var(--base); }
+.sw.band { height: 10px; border: 0; background: rgba(201, 209, 219, .14); }
+</style>
+</head>
+<body>
+<div class="wrap" id="wrap">
+  <header>
+    <div class="title"><h1 id="host">hwdash</h1><span class="sub" id="sub"></span></div>
+    <div class="tools">
+      <span class="status" id="status"></span>
+      <div class="seg" id="ranges"></div>
+      <button class="btn" id="edit-btn" aria-pressed="false"></button>
+    </div>
+  </header>
+  <div class="banner" id="banner" hidden>
+    <span id="banner-text"></span>
+    <div><button class="btn" id="reset-btn"></button><button class="btn primary" id="done-btn"></button></div>
+  </div>
+  <section id="hero-sec"><h2 id="h-main"></h2><div class="hero-grid" id="hero"></div></section>
+  <section id="load-sec"><h2 id="h-load"></h2><div class="load-grid" id="load"></div></section>
+  <section id="groups-sec"><h2 id="h-sensors"></h2><div class="groups" id="groups"></div></section>
+  <div class="note" id="note"></div>
+</div>
+
+<dialog id="detail">
+  <div class="dhead"><h3 id="d-title"></h3><button class="close" id="d-close">×</button></div>
+  <div class="chart" id="d-chart"></div>
+  <div class="axis" id="d-axis"></div>
+  <div class="legend" id="d-legend"></div>
+</dialog>
+
+<script>
+// ---- i18n: English by default, Russian for ru-* browsers; ?lang=en|ru overrides ----
+const I18N = {
+  en: {
+    loading: "loading…", customize: "Customize", reset: "Reset all", done: "Done",
+    banner: "“Show” hides or restores a tile, “Large” moves it to Overview, an empty name restores the default. Saved on the server for every device. Live updates are paused.",
+    main: "Overview", load: "Load", sensors: "Sensors",
+    g_cpu: "CPU", g_gpu: "GPU", g_board: "Motherboard", g_memory: "Memory", g_storage: "Storage",
+    g_net: "Network", g_fans: "Fans", g_other: "Other",
+    l_cpu: "CPU", l_mem: "Memory", l_disk: "Disk", l_gpu: "GPU",
+    threads: "{n} threads", ghz: "GHz", gib: "GiB", mib: "MiB", tb: "TB", gb: "GB", mbs: "MB/s", w: "W",
+    rpm: "rpm", cache: "cache", rd: "r", wr: "w", pp: " pp",
+    ok: "normal", warm: "warm", hot: "hot", min: "min", typ: "typical", max: "max", limit: "limit",
+    dev: "{d} vs typical", same: "≈ typical",
+    show: "show", large: "large", name: "Tile name",
+    note_base: "Typical = median of {span} of collected data (dashed line); the band in Overview is the usual range.",
+    note_hidden: "Hidden tiles: {n} — use Customize to bring them back.",
+    h: "h", days: "days", up: "up", d: "d",
+    updated: "updated {t}", stale: "stale data ({s} s)", offline: "no connection to the server",
+    saved: "settings saved", save_fail: "could not save settings",
+    confirm_reset: "Restore all tiles, sizes and default names?",
+    no_data: "No data yet — history is being collected.", value: "value",
+    leg_typ: "typical {v} — median of {span}", leg_band: "usual range {a}–{b} (80% of the time)",
+    no_base: "The typical level appears once some data is collected.",
+    close: "Close", chart: "chart", ranges: { "1h": "1h", "6h": "6h", "24h": "24h", "48h": "48h", "7d": "7d" },
+  },
+  ru: {
+    loading: "загрузка…", customize: "Настроить", reset: "Сбросить всё", done: "Готово",
+    banner: "«Показывать» — скрыть или вернуть плитку; «крупно» — вынести в «Главное»; пустое имя — исходное название. Сохраняется на сервере для всех устройств. Данные пока не обновляются.",
+    main: "Главное", load: "Нагрузка", sensors: "Датчики",
+    g_cpu: "Процессор", g_gpu: "Видеокарта", g_board: "Плата", g_memory: "Память", g_storage: "Накопители",
+    g_net: "Сеть", g_fans: "Вентиляторы", g_other: "Прочее",
+    l_cpu: "CPU", l_mem: "Память", l_disk: "Диск", l_gpu: "GPU",
+    threads: "{n} потоков", ghz: "ГГц", gib: "ГиБ", mib: "МиБ", tb: "ТБ", gb: "ГБ", mbs: "МБ/с", w: "Вт",
+    rpm: "об/мин", cache: "кэш", rd: "чт", wr: "зп", pp: " п.п.",
+    ok: "в норме", warm: "тепло", hot: "горячо", min: "мин", typ: "норма", max: "макс", limit: "предел",
+    dev: "{d} к норме", same: "≈ норма",
+    show: "показывать", large: "крупно", name: "Название плитки",
+    note_base: "Норма — медиана за {span} накопленных данных, пунктир на графиках; в «Главном» полоса — обычный диапазон.",
+    note_hidden: "Скрыто плиток: {n} — «Настроить», чтобы вернуть.",
+    h: "ч", days: "дн", up: "аптайм", d: "д",
+    updated: "обновлено {t}", stale: "данные устарели ({s} с)", offline: "нет связи с сервером",
+    saved: "настройки сохранены", save_fail: "не удалось сохранить настройки",
+    confirm_reset: "Вернуть все плитки, размеры и исходные названия?",
+    no_data: "Данных пока нет — история копится.", value: "значение",
+    leg_typ: "норма {v} — медиана за {span}", leg_band: "обычный диапазон {a}–{b} (80 % времени)",
+    no_base: "Норма появится, когда накопится немного данных.",
+    close: "Закрыть", chart: "график", ranges: { "1h": "1ч", "6h": "6ч", "24h": "24ч", "48h": "48ч", "7d": "7д" },
+  },
+};
+const LANG = (() => {
+  const q = new URLSearchParams(location.search).get("lang");
+  if (q && I18N[q]) return q;
+  return (navigator.language || "en").toLowerCase().startsWith("ru") ? "ru" : "en";
+})();
+const t = (key, vars = {}) => {
+  const s = I18N[LANG][key];
+  return typeof s === "string" ? s.replace(/\{(\w+)\}/g, (_, k) => vars[k]) : s;
+};
+document.documentElement.lang = LANG;
+
+const $ = (id) => document.getElementById(id);
+const GROUPS = ["cpu", "gpu", "board", "memory", "storage", "net", "fans", "other"];
+const GiB = 1024 ** 3;
+let range = "24h", now = null, hist = null, openKey = null, editing = false;
+let cfg = { hidden: {}, focus: {}, names: {} };
+try { range = localStorage.getItem("hwdash-range") || range; } catch (e) {}
+
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const fmt = (v, d = 0) => (v == null || Number.isNaN(v) ? "—" : v.toFixed(d));
+const gib = (b) => (b / GiB).toFixed(1);
+const mbs = (b) => (b / 1e6).toFixed(b < 1e7 ? 1 : 0);
+const spanText = (h) => (h < 48 ? `${h} ${t("h")}` : `${Math.round(h / 24)} ${t("days")}`);
+
+// Load cards: value, subtitle, bar, series for the chart and the sparkline scale.
+const LOAD = [
+  { key: "cpu", name: () => t("l_cpu"), unit: () => "%",
+    sub: (v, i) => `${t("threads", { n: i.cpu_threads })}${v.cpu_mhz ? ` · ${fmt(v.cpu_mhz / 1000, 1)} ${t("ghz")}` : ""}`,
+    big: (v) => `${fmt(v.cpu)}%`, extra: (v) => `load ${fmt(v.load1, 2)}`, pct: (v) => v.cpu, lim: () => [0, 100] },
+  { key: "mem_used", name: () => t("l_mem"), scale: 1 / GiB, unit: () => ` ${t("gib")}`,
+    sub: (v) => `${gib(v.mem_total)} ${t("gib")}`, big: (v) => `${gib(v.mem_used)} ${t("gib")}`,
+    extra: (v) => `${t("cache")} ${gib(v.mem_cache)} · swap ${gib(v.swap_used)}/${gib(v.swap_total)}`,
+    pct: (v) => (100 * v.mem_used) / v.mem_total, lim: (v) => [0, v.mem_total] },
+  { key: "disk_io", name: () => t("l_disk"), scale: 1e-6, unit: () => ` ${t("mbs")}`,
+    sub: (v, i) => `${i.disk ? i.disk + " · " : ""}${(v.disk_total / 1e12).toFixed(1)} ${t("tb")}`,
+    big: (v) => `${(v.disk_used / 1e9).toFixed(0)} ${t("gb")}`,
+    extra: (v) => `${t("rd")} ${mbs(v.disk_r ?? 0)} · ${t("wr")} ${mbs(v.disk_w ?? 0)} ${t("mbs")}`,
+    pct: (v) => (100 * v.disk_used) / v.disk_total },
+  { key: "gpu_util", name: () => t("l_gpu"), unit: () => "%",
+    sub: (v, i) => i.gpu_name || "", big: (v) => `${fmt(v.gpu_util)}%`,
+    extra: (v) => [
+      v.gpu_mem_total ? `VRAM ${v.gpu_mem >= 1024 ? fmt(v.gpu_mem / 1024, 1) + " " + t("gib") : fmt(v.gpu_mem) + " " + t("mib")} / ${fmt(v.gpu_mem_total / 1024)} ${t("gib")}` : "",
+      v.gpu_w != null ? `${fmt(v.gpu_w, 1)} ${t("w")}` : "",
+    ].filter(Boolean).join(" · "),
+    pct: (v) => v.gpu_util, lim: () => [0, 100] },
+];
+
+const titleOf = (key, fallback) => cfg.names[key] || fallback;
+const isHidden = (key, def = false) => cfg.hidden[key] ?? def;
+const isFocus = (key) => cfg.focus[key] ?? now.meta[key]?.focus ?? false;
+const seriesOf = (key) => hist?.series[key] || [];
+const baseOf = (key) => hist?.base?.keys[key];
+
+const yOf = (v, h, lo, hi) => h - 2 - ((v - lo) / (hi - lo || 1)) * (h - 4);
+
+// SVG path for a series with gaps on null; returns the line and the area.
+function paths(vals, w, h, lo, hi) {
+  let line = "", area = "", seg = [];
+  const n = Math.max(vals.length - 1, 1);
+  const flush = () => {
+    if (!seg.length) return;
+    const d = seg.map(([x, y], i) => `${i ? "L" : "M"}${x} ${y}`).join(" ");
+    line += d + " ";
+    area += `${d} L${seg[seg.length - 1][0]} ${h} L${seg[0][0]} ${h} Z `;
+    seg = [];
+  };
+  vals.forEach((v, i) => {
+    if (v == null) return flush();
+    seg.push([((i / n) * w).toFixed(1), yOf(v, h, lo, hi).toFixed(1)]);
+  });
+  flush();
+  return { line, area };
+}
+
+// Sparkline; the baseline (median) is dashed, band adds the p10–p90 range.
+function spark(vals, h, color, lim, base, band = false) {
+  const nums = vals.filter((v) => v != null);
+  if (!nums.length) return `<svg class="spark" viewBox="0 0 200 ${h}" aria-hidden="true"></svg>`;
+  const extra = base ? (band ? [base.p10, base.p90] : [base.p50]) : [];
+  const [lo, hi] = lim || [Math.min(...nums, ...extra), Math.max(...nums, ...extra)];
+  const p = paths(vals, 200, h, lo, hi);
+  let marks = "";
+  if (base) {
+    const by = yOf(base.p50, h, lo, hi).toFixed(1);
+    if (band) {
+      const top = yOf(base.p90, h, lo, hi), bottom = yOf(base.p10, h, lo, hi);
+      marks += `<rect x="0" width="200" y="${top.toFixed(1)}" height="${Math.max(1, bottom - top).toFixed(1)}" fill="#c9d1db" fill-opacity="0.045"/>`;
+    }
+    marks += `<line x1="0" x2="200" y1="${by}" y2="${by}" stroke="#c9d1db" stroke-opacity="0.55" stroke-dasharray="3 3" vector-effect="non-scaling-stroke"/>`;
+  }
+  return `<svg class="spark" viewBox="0 0 200 ${h}" preserveAspectRatio="none" aria-hidden="true">
+    ${marks}<path d="${p.area}" fill="${color}" fill-opacity="0.12"/>
+    <path d="${p.line}" fill="none" stroke="${color}" stroke-width="${band ? 2 : 1.5}" vector-effect="non-scaling-stroke"/></svg>`;
+}
+
+// Deviation from typical; highlighted when above the usual range (p90).
+function deviation(v, base, unit, d = 0) {
+  if (!base || v == null || Number.isNaN(v)) return "";
+  const diff = v - base.p50;
+  if (Math.abs(diff) < 0.5 * 10 ** -d) return `<span class="dev">${t("same")}</span>`;
+  const txt = `${diff > 0 ? "+" : "−"}${Math.abs(diff).toFixed(d)}${unit}`;
+  return `<span class="dev ${v > base.p90 ? "up" : ""}">${t("dev", { d: txt })}</span>`;
+}
+
+function editBlock(key, title, hiddenDef, withFocus) {
+  return `<div class="edit">
+    <div class="checks">
+      <label><input type="checkbox" data-hide="${esc(key)}" ${isHidden(key, hiddenDef) ? "" : "checked"}> ${t("show")}</label>
+      ${withFocus ? `<label><input type="checkbox" data-focus="${esc(key)}" ${isFocus(key) ? "checked" : ""}> ${t("large")}</label>` : ""}
+    </div>
+    <input type="text" data-name="${esc(key)}" value="${esc(cfg.names[key] || "")}" placeholder="${esc(title)}" aria-label="${t("name")}" maxlength="60">
+    <span class="hint" title="${esc(key)}">${esc(key)}</span>
+  </div>`;
+}
+
+function heat(m, v) {
+  if (m.kind !== "temp") return "";
+  return v >= m.warn ? "hot" : v >= m.warn * 0.9 ? "warm" : "";
+}
+
+// One function for both sensor tile sizes: standard and hero.
+function sensorTile(key, m, v, hero) {
+  const isTemp = m.kind === "temp", base = baseOf(key), title = titleOf(key, m.title);
+  const cls = heat(m, v), off = isHidden(key, m.hidden) ? " off" : "";
+  const src = key.slice(2).split("/")[0].replace(/_.*/, "");
+  const tag = editing ? "div" : "button";
+  const right = hero && isTemp ? `<span class="pill">${t(cls || "ok")}</span>` : `<span class="src">${esc(src)}</span>`;
+  return `<${tag} class="tile${hero ? " hero" : ""} ${cls}${off}" data-key="${esc(key)}">
+    <div class="row"><span class="name" title="${esc(title)}">${esc(title)}</span>${right}</div>
+    <div class="val"><span><span class="big">${fmt(v, isTemp ? 1 : 0)}</span><span class="unit">${isTemp ? "°C" : t("rpm")}</span></span>${deviation(v, base, isTemp ? "°" : "", 0)}</div>
+    ${spark(seriesOf(key), hero ? 84 : 36, cls ? "#ff9f43" : "#4ea1ff", null, base, hero)}
+    <div class="row mm"><span>${t("min")} ${fmt(hist?.min[key])}</span><span>${t("typ")} ${fmt(base?.p50)}</span><span>${t("max")} ${fmt(hist?.max[key])}</span>${hero && isTemp ? `<span>${t("limit")} ${m.warn}</span>` : ""}</div>
+    ${editing ? editBlock(key, m.title, m.hidden, true) : ""}
+  </${tag}>`;
+}
+
+function loadTile(c, v, info) {
+  const pct = Math.max(0, Math.min(100, c.pct(v) || 0)), base = baseOf(c.key);
+  const off = isHidden(c.key) ? " off" : "", tag = editing ? "div" : "button";
+  const scale = c.scale ?? 1, dec = c.key === "mem_used" ? 1 : 0, unit = c.unit();
+  const devBase = base && { p50: base.p50 * scale, p90: base.p90 * scale };
+  return `<${tag} class="tile load${off}" data-key="${c.key}">
+    <div class="row"><span class="cname">${esc(titleOf(c.key, c.name()))}</span><span class="src">${esc(c.sub(v, info))}</span></div>
+    <div class="row"><span class="cbig">${c.big(v)}</span><span class="extra">${esc(c.extra(v))}</span></div>
+    <div class="bar"><div style="width:${Math.max(pct, 1).toFixed(1)}%"></div></div>
+    ${spark(seriesOf(c.key), 44, "#4ea1ff", c.lim?.(v), base)}
+    <div class="row mm"><span>${t("typ")} ${base ? (base.p50 * scale).toFixed(dec) + unit : "—"}</span>${deviation(v[c.key] == null ? null : v[c.key] * scale, devBase, unit === "%" ? t("pp") : unit, dec)}</div>
+    ${editing ? editBlock(c.key, c.name(), false, false) : ""}
+  </${tag}>`;
+}
+
+function render() {
+  if (!now) return;
+  const v = now.values, info = now.info, meta = now.meta;
+  $("host").textContent = info.title;
+  document.title = `${info.title} · hwdash`;
+  const up = info.uptime, d = Math.floor(up / 86400), h = Math.floor((up % 86400) / 3600);
+  $("sub").textContent = [info.cpu_model?.replace(/ \d+-Core Processor/, ""), info.gpu_name,
+    `${t("up")} ${d ? d + " " + t("d") + " " : ""}${h} ${t("h")}`].filter(Boolean).join(" · ");
+
+  const byOrder = (a, b) => meta[a].order - meta[b].order || a.localeCompare(b, "en", { numeric: true });
+  const sensors = Object.keys(meta).filter((k) => k in v && (editing || !isHidden(k, meta[k].hidden))).sort(byOrder);
+
+  const hero = sensors.filter(isFocus);
+  $("hero").innerHTML = hero.map((k) => sensorTile(k, meta[k], v[k], true)).join("");
+  $("hero-sec").hidden = !hero.length;
+
+  const loads = LOAD.filter((c) => (c.key !== "gpu_util" || "gpu_util" in v) && (editing || !isHidden(c.key)));
+  $("load").innerHTML = loads.map((c) => loadTile(c, v, info)).join("");
+  $("load-sec").hidden = !loads.length;
+
+  const rest = sensors.filter((k) => !isFocus(k));
+  $("groups").innerHTML = GROUPS.map((id) => {
+    const keys = rest.filter((k) => (GROUPS.includes(meta[k].group) ? meta[k].group : "other") === id);
+    if (!keys.length) return "";
+    const n = keys.length;
+    return `<div class="group" style="flex: ${n} 1 calc(${n} * 170px + ${n - 1} * 12px)">
+      <h3>${t("g_" + id)}</h3><div class="gtiles">${keys.map((k) => sensorTile(k, meta[k], v[k], false)).join("")}</div></div>`;
+  }).join("");
+  $("groups-sec").hidden = !rest.length;
+
+  const nHidden = Object.keys(meta).filter((k) => k in v && isHidden(k, meta[k].hidden)).length + LOAD.filter((c) => isHidden(c.key)).length;
+  const span = hist?.base?.span_h;
+  $("note").textContent = [
+    span ? t("note_base", { span: spanText(span) }) : "",
+    !editing && nHidden ? t("note_hidden", { n: nHidden }) : "",
+  ].join(" ");
+  if (openKey && $("detail").open) drawDetail();
+}
+
+// Large chart: usual range band p10–p90, dashed median, hover tooltip.
+function drawDetail() {
+  const key = openKey, W = 900, H = 300;
+  const load = LOAD.find((c) => c.key === key);
+  const m = now.meta[key];
+  const scale = load?.scale ?? 1;
+  const unit = load ? load.unit() : m.kind === "temp" ? " °C" : ` ${t("rpm")}`;
+  const vals = seriesOf(key).map((x) => (x == null ? null : x * scale));
+  const nums = vals.filter((x) => x != null);
+  const b = baseOf(key), base = b && { p10: b.p10 * scale, p50: b.p50 * scale, p90: b.p90 * scale };
+  $("d-title").textContent = `${titleOf(key, load ? load.name() : m.title)} · ${t("ranges")[range]}`;
+  if (!nums.length) {
+    $("d-chart").innerHTML = `<p class="sub">${t("no_data")}</p>`;
+    $("d-axis").innerHTML = $("d-legend").innerHTML = "";
+    return;
+  }
+  let lo = Math.min(...nums, ...(base ? [base.p10] : [])), hi = Math.max(...nums, ...(base ? [base.p90] : []));
+  const pad = (hi - lo) * 0.1 || 1; lo = Math.max(0, lo - pad); hi += pad;
+  const p = paths(vals, W, H, lo, hi);
+  const ticks = [0, 0.25, 0.5, 0.75, 1].map((f) => ({ y: H - 2 - f * (H - 4), v: lo + f * (hi - lo) }));
+  const dec = hi - lo < 10 ? 1 : 0;
+  const band = base ? `<rect x="0" width="${W}" y="${yOf(base.p90, H, lo, hi)}" height="${Math.max(1, yOf(base.p10, H, lo, hi) - yOf(base.p90, H, lo, hi))}" fill="#c9d1db" fill-opacity="0.08"/>
+    <line x1="0" x2="${W}" y1="${yOf(base.p50, H, lo, hi)}" y2="${yOf(base.p50, H, lo, hi)}" stroke="#c9d1db" stroke-opacity="0.7" stroke-dasharray="6 5" vector-effect="non-scaling-stroke"/>` : "";
+  $("d-chart").innerHTML = `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label="${t("chart")}">
+    ${ticks.map((tk) => `<line x1="0" x2="${W}" y1="${tk.y}" y2="${tk.y}" stroke="#262b35" vector-effect="non-scaling-stroke"/>`).join("")}
+    ${band}
+    <path d="${p.area}" fill="#4ea1ff" fill-opacity="0.12"/>
+    <path d="${p.line}" fill="none" stroke="#4ea1ff" stroke-width="2" vector-effect="non-scaling-stroke"/>
+    <line id="d-cross" x1="0" x2="0" y1="0" y2="${H}" stroke="#9aa3ad" vector-effect="non-scaling-stroke" visibility="hidden"/>
+    </svg>${ticks.map((tk) => `<span class="mm" style="position:absolute;left:4px;top:${(tk.y / H) * 300 - 14}px">${tk.v.toFixed(dec)}</span>`).join("")}
+    <div class="tip" id="d-tip"></div>`;
+  const t0 = hist.start, step = hist.step, n = vals.length;
+  const long = range === "7d" || range === "48h";
+  const clock = (ts) => new Date(ts * 1000).toLocaleString(LANG, long ? { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" } : { hour: "2-digit", minute: "2-digit" });
+  $("d-axis").innerHTML = [0, 0.25, 0.5, 0.75, 1].map((f) => `<span>${clock(t0 + Math.round(f * (n - 1)) * step)}</span>`).join("");
+  $("d-legend").innerHTML = base ? `<span><i class="sw"></i>${t("value")}</span>
+    <span><i class="sw base"></i>${t("leg_typ", { v: base.p50.toFixed(dec + 1) + unit, span: spanText(hist.base.span_h) })}</span>
+    <span><i class="sw band"></i>${t("leg_band", { a: base.p10.toFixed(dec), b: base.p90.toFixed(dec) + unit })}</span>`
+    : `<span>${t("no_base")}</span>`;
+  const svg = $("d-chart").querySelector("svg"), tip = $("d-tip"), cross = $("d-cross");
+  svg.addEventListener("pointermove", (e) => {
+    const r = svg.getBoundingClientRect(), f = Math.min(1, Math.max(0, (e.clientX - r.left) / r.width));
+    const i = Math.round(f * (n - 1)), x = (i / (n - 1)) * W;
+    cross.setAttribute("x1", x); cross.setAttribute("x2", x); cross.setAttribute("visibility", "visible");
+    tip.style.display = "block";
+    tip.textContent = `${clock(t0 + i * step)} · ${vals[i] == null ? "—" : vals[i].toFixed(dec + 1) + unit}`;
+    tip.style.left = Math.min(r.width - tip.offsetWidth, Math.max(0, f * r.width - tip.offsetWidth / 2)) + "px";
+  });
+  svg.addEventListener("pointerleave", () => { tip.style.display = "none"; cross.setAttribute("visibility", "hidden"); });
+}
+
+function setStatus(text, bad = false) {
+  $("status").textContent = text;
+  $("status").classList.toggle("bad", bad);
+}
+
+async function loadNow() {
+  try {
+    now = await (await fetch("api/now")).json();
+  } catch (e) {
+    setStatus(t("offline"), true);
+    return;
+  }
+  const age = Math.round(Date.now() / 1000 - now.ts);
+  if (age > 3 * now.info.step) setStatus(t("stale", { s: age }), true);
+  else setStatus(t("updated", { t: new Date(now.ts * 1000).toLocaleTimeString(LANG) }));
+  if (!editing) render();  // re-rendering while customizing would reset the inputs
+}
+
+async function loadHist() {
+  try { hist = await (await fetch(`api/history?range=${range}`)).json(); } catch (e) { return; }
+  if (!editing) render();
+}
+
+let saveTimer = null;
+function saveConfig() {
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(async () => {
+    try {
+      const r = await fetch("api/config", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(cfg) });
+      if (!r.ok) throw new Error(r.status);
+      setStatus(t("saved"));
+    } catch (e) {
+      setStatus(t("save_fail"), true);
+    }
+  }, 300);
+}
+
+function setEditing(on) {
+  editing = on;
+  $("wrap").classList.toggle("editing", on);
+  $("banner").hidden = !on;
+  $("edit-btn").setAttribute("aria-pressed", on);
+  render();
+}
+
+function setRange(r) {
+  range = r;
+  try { localStorage.setItem("hwdash-range", r); } catch (e) {}
+  document.querySelectorAll("#ranges button").forEach((b) => b.setAttribute("aria-pressed", b.dataset.r === r));
+  loadHist();
+}
+
+// Static texts
+$("ranges").innerHTML = Object.entries(t("ranges")).map(([r, label]) => `<button data-r="${r}">${label}</button>`).join("");
+$("status").textContent = t("loading");
+$("edit-btn").textContent = t("customize");
+$("banner-text").textContent = t("banner");
+$("reset-btn").textContent = t("reset");
+$("done-btn").textContent = t("done");
+$("h-main").textContent = t("main");
+$("h-load").textContent = t("load");
+$("h-sensors").textContent = t("sensors");
+$("d-close").setAttribute("aria-label", t("close"));
+
+$("ranges").addEventListener("click", (e) => e.target.dataset.r && setRange(e.target.dataset.r));
+$("edit-btn").addEventListener("click", () => setEditing(!editing));
+$("done-btn").addEventListener("click", () => setEditing(false));
+$("d-close").addEventListener("click", () => $("detail").close());
+$("reset-btn").addEventListener("click", () => {
+  if (!confirm(t("confirm_reset"))) return;
+  cfg = { hidden: {}, focus: {}, names: {} };
+  saveConfig();
+  render();
+});
+document.addEventListener("click", (e) => {
+  const tile = e.target.closest(".tile");
+  if (!tile || editing) return;
+  openKey = tile.dataset.key;
+  $("detail").showModal();
+  drawDetail();
+});
+document.addEventListener("change", (e) => {
+  const { hide, focus } = e.target.dataset;
+  if (hide != null) {
+    cfg.hidden[hide] = !e.target.checked;
+    e.target.closest(".tile").classList.toggle("off", !e.target.checked);
+  } else if (focus != null) {
+    cfg.focus[focus] = e.target.checked;
+    render();  // the tile moves between Overview and its group
+  } else return;
+  saveConfig();
+});
+document.addEventListener("input", (e) => {
+  const key = e.target.dataset.name;
+  if (key == null) return;
+  const name = e.target.value.trim();
+  if (name) cfg.names[key] = name; else delete cfg.names[key];
+  e.target.closest(".tile").querySelector(".name, .cname").textContent = name || e.target.placeholder;
+  saveConfig();
+});
+
+(async () => {
+  try { cfg = { hidden: {}, focus: {}, names: {}, ...(await (await fetch("api/config")).json()) }; } catch (e) {}
+  setRange(t("ranges")[range] ? range : "24h");
+  loadNow();
+  setInterval(loadNow, 10000);
+  setInterval(loadHist, 60000);
+})();
+</script>
+</body>
+</html>
