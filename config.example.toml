@@ -12,6 +12,56 @@
 # disk_mount = "/"          # filesystem shown in the Disk card
 # disk = ""                 # block device for I/O rates; empty = the one holding disk_mount
 
+# Moonlight / Sunshine: sessions and access schedules (the Streaming tab).
+# Also add the launch gate to sunshine.conf and set a PIN, see README.
+[sunshine]
+# enabled = false
+# api = "https://localhost:47990"           # Sunshine Web UI
+# serverinfo = "http://localhost:47989/serverinfo"
+# credentials = "~/.config/hwdash/sunshine.cred"  # "user:password" of the Web UI, mode 600
+# log = "~/.config/sunshine/sunshine.log"
+# policy = "~/.config/hwdash/sunshine-policy.json"  # written by the dashboard
+# pin = "~/.config/hwdash/pin"              # written by `hwdash.py set-pin`
+# warn_minutes = [10, 2]                    # on-screen notifications before time runs out
+# close_after_disconnect_minutes = 5        # close a managed device's app left running after "Disconnect"
+# game_close_grace_minutes = 5              # after the stream ends: time to add minutes before the game is closed
+# game_process = '^\S*reaper SteamLaunch AppId=(\d+)'  # regex on the cmdline; "" = never close games
+# notify = ["notify-send", "-u", "critical", "-a", "Moonlight", "Moonlight", "{message}"]
+# lang = "en"                               # notification language: en | ru
+# tick = 5
+
+# Network map: the Network tab, a tree of nodes pinged from this machine.
+# One node has no parent (the root); optional = true shows "offline" instead of a failure.
+# [topology]
+# enabled = false
+# interval = 15             # seconds between checks
+# count = 3                 # echo requests per check
+# rtt_warn_ms = 150         # a slower average counts as degraded
+#
+# [[topology.nodes]]
+# id = "hub"
+# title = "Main router"
+# subtitle = "192.0.2.1"
+# group = "Hub"
+# ping = "192.0.2.1"
+#
+# [[topology.nodes]]
+# id = "laptop"
+# title = "Laptop"
+# subtitle = "192.0.2.40"
+# group = "Client"
+# ping = "192.0.2.40"       # no ping = always "no data"
+# parent = "hub"
+# link = "WireGuard"
+# optional = true
+#
+# Keenetic/Netcraze routers can be read over their web API (GET only). The link's colour
+# then shows the tunnel state on the parent router instead of the ping.
+# [topology] options: api_interval = 30, handshake_max = 300,
+#   credentials = "~/.config/hwdash/topology.cred"  # "user:password", mode 600
+# Node options: api = "http://192.0.2.1" on a router;
+#   tunnel_if = "Wireguard2" or tunnel_user = "laptop" (SSTP login) on its child.
+
 # Per-sensor defaults. The key is the sensor id shown at the bottom of each tile
 # in Customize mode: "t:<driver>/<label>" for temperatures, "f:<driver>/<label>"
 # for fans, "t:gpu" for the NVIDIA GPU. A repeated driver+label gets "#2", "#3".

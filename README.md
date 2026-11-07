@@ -5,7 +5,7 @@ kernel exposes, fans, CPU, memory, disk and GPU — live values plus history up 
 a week, with a per-sensor "typical" baseline so you can see at a glance what is
 unusual.
 
-One Python file, standard library only, no build step, no database server.
+Python standard library only, no build step, no database server.
 About 35 MB of RAM and well under 1 % of one CPU core.
 
 [Русская версия](README.ru.md)
@@ -28,6 +28,11 @@ About 35 MB of RAM and well under 1 % of one CPU core.
   with a hover tooltip.
 - **Customize in the browser**: hide tiles, move them to the top, rename them.
   Settings are stored on the server, so every device sees the same layout.
+- **Moonlight / Sunshine** (optional): live streaming sessions and per-device
+  access schedules with daily limits — see [below](#moonlight--sunshine-sessions-and-access-schedules).
+- **Network map** (optional): a **Network** tab with your VPN nodes and links. Node colour is
+  a ping from this machine; link colour can come from the tunnel state on a Keenetic/Netcraze
+  router — see the `[topology]` section of `config.example.toml`.
 - English and Russian UI (by browser language, or `?lang=en|ru`).
 - Works on a phone.
 
@@ -68,6 +73,12 @@ logged in, enable lingering once: `sudo loginctl enable-linger $USER`.
 hwdash has **no authentication**. It only reads sensors and writes its own
 files (`PUT /api/config` accepts nothing but validated tile settings), but it
 does show hardware details and lets anyone who can reach it change the layout.
+With `[topology]` enabled (off by default), anyone who can open the page also sees the node
+names and addresses you configured. Router logins are never sent to the page, but they are kept
+in a local file, and hwdash talks to the routers over the `api` address you set: with `http://`
+the traffic is not encrypted, although the password itself is only sent hashed with a one-time challenge.
+Prefer a router account with the fewest rights that still allows reading.
+
 Keep it on a trusted network:
 
 - listen on localhost only (`bind = "127.0.0.1"`) and use an SSH tunnel:
@@ -111,6 +122,68 @@ for a minute and watch which values rise: the VRM follows CPU power, the socket
 sensor follows slowly, the chipset barely moves. Then name them in the config
 or in the browser.
 
+## Moonlight / Sunshine: sessions and access schedules
+
+If the machine streams games with [Sunshine](https://github.com/LizardByte/Sunshine)
+(2025.x or newer), hwdash can add a **Streaming** tab: who is connected and what
+is running, how long each paired device has streamed today, and when each device
+is allowed to connect — a parental control for Moonlight clients.
+
+![Streaming tab](docs/screenshots/streaming.png)
+
+| Rules and a daily limit | …or paint the week | Changes need a PIN |
+|---|---|---|
+| ![Rules](docs/screenshots/streaming-rules.png) | ![Week grid](docs/screenshots/streaming-grid.png) | ![PIN](docs/screenshots/streaming-pin.png) |
+
+Per device: **don't manage** (default — hwdash never touches it), **no limits**,
+**schedule** (weekly windows plus a daily limit for weekdays and weekends) or
+**blocked**. Quick actions: +15 min / +1 h, open for an hour, end the session,
+pause until the morning.
+
+How it is enforced:
+
+- hwdash switches paired devices on and off with Sunshine's own *enabled* flag
+  (`/api/clients/update`). Sunshine checks it on every request, so a closed
+  device cannot start or resume a stream.
+- A launch gate in Sunshine's `global_prep_cmd` records which device launched
+  what (`SUNSHINE_CLIENT_NAME`) and refuses a launch outside the allowed time.
+  It reads the same policy file, so it works even if hwdash is not running;
+  errors inside the gate let the launch through rather than lock everyone out.
+- When the time runs out mid-session: an on-screen notification 10 and 2
+  minutes before (sent with `notify-send` on the host, so it shows in the stream
+  on the desktop; a fullscreen game may hide it), then the stream ends and the
+  device is switched off. The game keeps running for
+  `game_close_grace_minutes` (5 by default): add time on the Streaming tab and
+  the device can reconnect to the same game. Otherwise the game is closed
+  (SIGTERM, then SIGKILL 15 s later), and unsaved progress is lost.
+- Streaming time is the time between `CLIENT CONNECTED` and `CLIENT DISCONNECTED`
+  in `sunshine.log`, credited to the device that launched the app.
+
+Setup:
+
+1. Save the Sunshine Web UI login for hwdash: `printf 'user:password' > ~/.config/hwdash/sunshine.cred && chmod 600 ~/.config/hwdash/sunshine.cred`
+2. Enable the module in `~/.config/hwdash/config.toml`:
+   ```toml
+   [sunshine]
+   enabled = true
+   ```
+3. Add the launch gate to `~/.config/sunshine/sunshine.conf` and restart Sunshine:
+   ```
+   global_prep_cmd = [{"do":"/usr/bin/python3 /path/to/hwdash/hwdash.py gate-start","undo":"/usr/bin/python3 /path/to/hwdash/hwdash.py gate-end","elevated":false}]
+   ```
+4. Set the PIN for changes: `python3 hwdash.py set-pin`, then `systemctl --user restart hwdash`.
+
+Limitations:
+
+- Moonlight's *Disconnect* (unlike *Quit*) leaves the app running, and a later
+  reconnect resumes it without running prep commands, so hwdash cannot tell who
+  resumed. Time is credited to whoever launched it; to keep that honest, a
+  managed device's app is closed `close_after_disconnect_minutes` after it
+  disconnects.
+- The PIN travels over plain HTTP; it guards against someone at home changing
+  the rules, not against a network attacker. After 5 wrong PINs the next try
+  waits 30 s, then twice as long each time.
+
 ## How it works
 
 - A collector thread samples every `step` seconds (default 10) and stores one
@@ -131,6 +204,10 @@ or in the browser.
 | `GET /api/history?range=24h` | `1h`, `6h`, `24h`, `48h`, `7d`: bucketed series, min/max, baselines |
 | `GET /api/config` | Tile settings made in the browser |
 | `PUT /api/config` | Save tile settings: `{"hidden": {}, "focus": {}, "names": {}}` |
+| `GET /api/stream` | Streaming tab: session, devices with rules and today's usage, events (`[sunshine]` only) |
+| `POST /api/stream/login` | `{"pin"}` → `{"token"}`; send it as `X-Hwdash-Token` with the calls below |
+| `PUT /api/stream/policy` | `{"uuid", "policy": {"mode", "days", "limit_weekday", "limit_weekend"}}` |
+| `POST /api/stream/action` | `{"uuid", "action": "extend"\|"pause_today"\|"pause_morning"\|"end"\|"clear"\|"close_game", "minutes"}` |
 
 ## Development
 

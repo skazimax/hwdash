@@ -10,8 +10,16 @@ API:
   GET /api/history?range=24h   bucketed history (1h|6h|24h|48h|7d) + baselines
   GET /api/config              tile settings made in the UI (hidden / large / names)
   PUT /api/config              save tile settings
+
+With [sunshine] enabled (see sunshine.py) also:
+  GET  /api/topology           network map with live reachability (needs [topology])
+  GET  /api/stream             Moonlight session, paired devices, schedules, today
+  POST /api/stream/login       {"pin"} -> {"token"} for changes (X-Hwdash-Token header)
+  PUT  /api/stream/policy      {"uuid", "policy"} — mode, weekly windows, daily limits
+  POST /api/stream/action      {"uuid", "action", "minutes"} — extend, pause, end, clear, close_game
 """
 import argparse
+import getpass
 import glob
 import json
 import logging
@@ -22,6 +30,7 @@ import re
 import socket
 import sqlite3
 import subprocess
+import sys
 import tempfile
 import threading
 import time
@@ -30,7 +39,10 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
-__version__ = "1.0.0"
+import sunshine
+import topology
+
+__version__ = "1.3.0"
 
 STATIC = Path(__file__).resolve().parent / "static"
 DEFAULT_CONFIG = Path.home() / ".config/hwdash/config.toml"
@@ -89,21 +101,27 @@ def read_text(path):
 
 
 def load_settings(path):
-    """Settings from config.toml: [server] options and [sensors."<key>"] overrides."""
-    settings = {"server": dict(SERVER_DEFAULTS), "sensors": {}}
+    """Settings from config.toml: [server], [sunshine], [topology] and [sensors."<key>"] overrides."""
+    settings = {"server": dict(SERVER_DEFAULTS), "sunshine": dict(sunshine.SUNSHINE_DEFAULTS),
+                "topology": dict(topology.TOPOLOGY_DEFAULTS), "sensors": {}}
     if path is None:
         return settings
     with open(path, "rb") as f:
         data = tomllib.load(f)
-    server, sensors = data.get("server", {}), data.get("sensors", {})
-    unknown = set(server) - set(SERVER_DEFAULTS)
-    if unknown:
-        raise SystemExit(f"{path}: unknown [server] options: {', '.join(sorted(unknown))}")
+    server, stream, sensors = data.get("server", {}), data.get("sunshine", {}), data.get("sensors", {})
+    net = data.get("topology", {})
+    for name, section, defaults in (("server", server, SERVER_DEFAULTS), ("sunshine", stream, sunshine.SUNSHINE_DEFAULTS),
+                                    ("topology", net, topology.TOPOLOGY_DEFAULTS)):
+        unknown = set(section) - set(defaults)
+        if unknown:
+            raise SystemExit(f"{path}: unknown [{name}] options: {', '.join(sorted(unknown))}")
     for key, opts in sensors.items():
         bad = set(opts) - SENSOR_FIELDS
         if bad:
             raise SystemExit(f"{path}: [sensors.\"{key}\"] unknown fields: {', '.join(sorted(bad))}")
     settings["server"].update(server)
+    settings["sunshine"].update(stream)
+    settings["topology"].update(net)
     settings["sensors"] = sensors
     return settings
 
@@ -525,7 +543,7 @@ def collector_loop(collector, store, state, step, retention_h):
             log.exception("collector loop failed")
 
 
-def make_handler(collector, store, ui_config, state, step):
+def make_handler(collector, store, ui_config, state, step, stream=None, net=None):
     index = STATIC / "index.html"
 
     class Handler(BaseHTTPRequestHandler):
@@ -542,8 +560,14 @@ def make_handler(collector, store, ui_config, state, step):
             self.end_headers()
             self.wfile.write(body)
 
-        def send_json(self, obj):
-            self.send_body(200, json.dumps(obj, ensure_ascii=False).encode(), "application/json; charset=utf-8")
+        def send_json(self, obj, code=200):
+            self.send_body(code, json.dumps(obj, ensure_ascii=False).encode(), "application/json; charset=utf-8")
+
+        def read_json(self):
+            length = int(self.headers.get("Content-Length") or 0)
+            if not 0 < length <= 65536:
+                raise ValueError("body is empty or too large")
+            return json.loads(self.rfile.read(length))  # JSONDecodeError is a ValueError
 
         def do_GET(self):
             url = urlparse(self.path)
@@ -552,7 +576,12 @@ def make_handler(collector, store, ui_config, state, step):
             elif url.path == "/api/now":
                 uptime = float((read_text("/proc/uptime") or "0").split()[0])
                 self.send_json({**state.get("now", {}), "meta": collector.meta,
-                                "info": {**collector.info, "uptime": int(uptime), "step": step}})
+                                "info": {**collector.info, "uptime": int(uptime), "step": step,
+                                         "stream": stream is not None, "topology": net is not None}})
+            elif url.path == "/api/stream" and stream:
+                self.send_json(stream.snapshot(self.headers.get("X-Hwdash-Token")))
+            elif url.path == "/api/topology" and net:
+                self.send_json(net.snapshot())
             elif url.path == "/api/config":
                 self.send_json(ui_config.load())
             elif url.path == "/api/history":
@@ -565,20 +594,51 @@ def make_handler(collector, store, ui_config, state, step):
                 self.send_body(404, b"not found", "text/plain")
 
         def do_PUT(self):
-            if urlparse(self.path).path != "/api/config":
+            path = urlparse(self.path).path
+            if path == "/api/stream/policy" and stream:
+                self.stream_change(lambda body: stream.set_policy(str(body["uuid"]), body["policy"]))
+                return
+            if path != "/api/config":
                 self.send_body(404, b"not found", "text/plain")
                 return
-            length = int(self.headers.get("Content-Length") or 0)
-            if not 0 < length <= 65536:
-                self.send_body(413, b"too large", "text/plain")
-                return
             try:
-                cfg = clean_config(json.loads(self.rfile.read(length)))
-            except ValueError as e:  # includes JSONDecodeError
+                cfg = clean_config(self.read_json())
+            except ValueError as e:
                 self.send_body(400, str(e).encode(), "text/plain")
                 return
             ui_config.save(cfg)
             self.send_json(cfg)
+
+        def do_POST(self):
+            path = urlparse(self.path).path
+            if path == "/api/stream/login" and stream:
+                try:
+                    pin = str(self.read_json().get("pin", ""))
+                except (ValueError, AttributeError):
+                    self.send_body(400, b"bad request", "text/plain")
+                    return
+                if not stream.pin_path.exists():
+                    self.send_json({"error": "no_pin"}, 403)
+                    return
+                token, wait = stream.login(pin)
+                self.send_json({"token": token, "ttl": sunshine.TOKEN_TTL} if token else {"error": "bad_pin", "wait": wait},
+                               200 if token else 403)
+            elif path == "/api/stream/action" and stream:
+                self.stream_change(lambda body: stream.apply_action(str(body["uuid"]), body["action"], body.get("minutes")))
+            else:
+                self.send_body(404, b"not found", "text/plain")
+
+        def stream_change(self, change):
+            """Changes to Moonlight access need a token from /api/stream/login."""
+            if not stream.authorized(self.headers.get("X-Hwdash-Token")):
+                self.send_json({"error": "auth"}, 401)
+                return
+            try:
+                change(self.read_json())
+            except (ValueError, KeyError, TypeError) as e:
+                self.send_json({"error": str(e)}, 400)
+                return
+            self.send_json(stream.snapshot(self.headers.get("X-Hwdash-Token")))
 
     return Handler
 
@@ -590,6 +650,9 @@ def seed_demo(collector, store, hours=26, every=60):
 
 def main():
     parser = argparse.ArgumentParser(description="Tiny dashboard for hardware temperatures and load.")
+    parser.add_argument("command", nargs="?", choices=["serve", "set-pin", "gate-start", "gate-end"], default="serve",
+                        help="serve (default); set-pin: PIN for Moonlight access changes; "
+                             "gate-start / gate-end: Sunshine global_prep_cmd do / undo")
     parser.add_argument("-c", "--config", type=Path,
                         help=f"config file (default: {DEFAULT_CONFIG} if it exists)")
     parser.add_argument("--bind", help="address to listen on (overrides config)")
@@ -600,31 +663,58 @@ def main():
     args = parser.parse_args()
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
 
-    config = args.config or (DEFAULT_CONFIG if DEFAULT_CONFIG.exists() else None)
+    # The demo ignores your own config unless one is named: screenshots must not show the real machine
+    config = args.config or (DEFAULT_CONFIG if DEFAULT_CONFIG.exists() and not args.demo else None)
     settings = load_settings(config)
     server = settings["server"]
     for opt in ("bind", "port"):
         if getattr(args, opt) is not None:
             server[opt] = getattr(args, opt)
     step = int(server["step"])
+    stream_cfg = settings["sunshine"]
 
+    if args.command in ("gate-start", "gate-end"):
+        sys.exit(sunshine.run_gate(stream_cfg, Path(server["db"]).expanduser(), args.command[5:]))
+    if args.command == "set-pin":
+        pin = getpass.getpass("New PIN (4+ characters): ")
+        if len(pin) < 4 or pin != getpass.getpass("Repeat: "):
+            raise SystemExit("PINs are shorter than 4 characters or do not match")
+        sunshine.write_private(Path(stream_cfg["pin"]).expanduser(), sunshine.hash_pin(pin) + "\n")
+        print(f"PIN saved to {stream_cfg['pin']}")
+        return
+
+    stream = net = None
+    net_cfg = settings["topology"]
     if args.demo:
         tmp = Path(tempfile.mkdtemp(prefix="hwdash-demo-"))
         collector = DemoCollector(server, settings["sensors"])
         store = Store(tmp / "metrics.db", step)
         ui_config = UiConfig(tmp / "ui.json")
         seed_demo(collector, store)
+        stream = sunshine.make_demo(tmp, stream_cfg)
+        net = topology.make_demo(net_cfg)
     else:
         collector = Collector(server, settings["sensors"])
         store = Store(Path(server["db"]).expanduser(), step)
         ui_config = UiConfig(Path(server["ui_config"]).expanduser())
         collector.sample()  # baseline counters for CPU / disk rates
         time.sleep(1)
+        if stream_cfg["enabled"]:
+            stream = sunshine.StreamManager(stream_cfg, Path(server["db"]).expanduser())
+        if net_cfg["enabled"]:
+            try:
+                net = topology.TopologyMonitor(net_cfg)
+            except ValueError as e:
+                raise SystemExit(f"{config}: [topology]: {e}")
+            net.start()
     ts, values = collector.sample()
     state = {"now": {"ts": ts, "values": values}}
     threading.Thread(target=collector_loop, args=(collector, store, state, step, server["retention_hours"]),
                      daemon=True).start()
-    httpd = ThreadingHTTPServer((server["bind"], server["port"]), make_handler(collector, store, ui_config, state, step))
+    if stream:
+        stream.start()
+    httpd = ThreadingHTTPServer((server["bind"], server["port"]),
+                                make_handler(collector, store, ui_config, state, step, stream, net))
     log.info("hwdash %s on http://%s:%d%s, config %s", __version__, server["bind"], server["port"],
              " (demo)" if args.demo else "", config or "none")
     try:

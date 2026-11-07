@@ -10,6 +10,7 @@
   --bg: #0f1115; --card: #171a21; --line: #262b35; --text: #e6e8eb;
   --muted: #9aa3ad; --faint: #8b95a1; --accent: #4ea1ff; --warm: #ff9f43;
   --hot: #ff6b6b; --ok: #5fd3a8; --btn: #2b3240; --base: #c9d1db;
+  color-scheme: dark;
 }
 * { box-sizing: border-box; }
 body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.4 Inter, system-ui, sans-serif; }
@@ -108,18 +109,152 @@ dialog::backdrop { background: rgba(0, 0, 0, .6); }
 .sw { width: 18px; height: 0; border-top: 2px solid var(--accent); }
 .sw.base { border-top: 2px dashed var(--base); }
 .sw.band { height: 10px; border: 0; background: rgba(201, 209, 219, .14); }
+
+/* Streaming tab */
+.tabs { display: flex; background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 3px; }
+.tabs[hidden], .tabs button[hidden] { display: none; }
+.tabs button { border: 0; border-radius: 6px; min-height: 32px; padding: 4px 14px; font: inherit; font-size: 14px;
+  cursor: pointer; background: transparent; color: var(--muted); display: flex; align-items: center; gap: 6px; }
+.tabs button[aria-selected="true"] { background: var(--btn); color: #fff; }
+.tabs .live { width: 7px; height: 7px; border-radius: 50%; background: var(--ok); }
+.page { display: flex; flex-direction: column; gap: 28px; }
+.page[hidden], .tools > span[hidden] { display: none; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 16px; }
+.card.session { background: #1a1e26; border-color: #2f3644; padding: 20px 22px; display: flex; flex-direction: column; gap: 12px; }
+.session .who { display: flex; align-items: center; gap: 10px; font-size: 16px; font-weight: 600; }
+.dot { width: 10px; height: 10px; border-radius: 50%; background: var(--faint); flex: none; }
+.dot.on { background: var(--ok); }
+.session .timer { font-size: 44px; font-weight: 650; line-height: 1; font-variant-numeric: tabular-nums; }
+.meta { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 13px; color: #b8c0c9; }
+.actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.btn.danger { border-color: #5b2a2a; background: #2a1717; color: #ff8a8a; }
+.btn.small { min-height: 36px; padding: 0 10px; font-size: 12px; }
+.chip { display: inline-flex; align-items: center; font-size: 12px; font-weight: 600; padding: 3px 10px; border-radius: 999px;
+  white-space: nowrap; justify-self: start; background: rgba(154, 163, 173, .14); color: #b8c0c9; }
+.chip.online { background: rgba(95, 211, 168, .12); color: var(--ok); }
+.chip.allowed { background: rgba(78, 161, 255, .14); color: #7ab8ff; }
+.chip.closed { background: rgba(255, 107, 107, .14); color: #ff8a8a; }
+.chip.soon { background: rgba(255, 159, 67, .14); color: #ffb86b; }
+.usage { height: 6px; background: var(--line); border-radius: 3px; overflow: hidden; }
+.usage div { height: 100%; background: var(--accent); }
+.usage div.soon { background: var(--warm); }
+.ctable { border: 1px solid var(--line); border-radius: 12px; overflow-x: auto; }
+.crow { display: grid; grid-template-columns: minmax(110px, 1fr) 170px minmax(180px, 1.6fr) minmax(140px, 1fr) 200px;
+  gap: 12px; padding: 12px 16px; align-items: center; border-bottom: 1px solid #1d2129; min-width: 860px; }
+.crow:last-child { border-bottom: 0; }
+@media (max-width: 720px) {  /* rows become cards on a phone */
+  .crow { grid-template-columns: 1fr auto; min-width: 0; gap: 8px 12px; }
+  .crow.head { display: none; }
+  .crow .rule, .crow .used, .crow .actions { grid-column: 1 / -1; }
+  .crow .actions { justify-content: flex-start; }
+}
+.crow.head { font-size: 12px; color: var(--faint); padding: 10px 16px; border-bottom-color: var(--line); }
+.crow .cn { font-size: 14px; font-weight: 600; }
+.crow .rule { font-size: 13px; color: #b8c0c9; }
+.crow .used { display: flex; flex-direction: column; gap: 4px; font-size: 11px; color: var(--faint); }
+.crow .actions { justify-content: flex-end; gap: 6px; }
+.lanes { display: flex; flex-direction: column; gap: 10px; }
+.lane { display: grid; grid-template-columns: 110px 1fr; gap: 12px; align-items: center; font-size: 13px; color: #b8c0c9; }
+.lane .name { font-size: 13px; }
+.track { position: relative; height: 18px; background: #12151b; border-radius: 4px; overflow: hidden; }
+.track i { position: absolute; top: 0; bottom: 0; }
+.track .win { background: rgba(78, 161, 255, .14); }
+.track .use { top: 4px; bottom: 4px; border-radius: 3px; background: var(--accent); min-width: 3px; }
+.rulerow input { width: 70px; text-align: center; font-variant-numeric: tabular-nums; }
+.rulerow input:invalid { border-color: var(--hot); }
+.track .use.live { background: var(--warm); }
+.track .nowline { width: 2px; background: #e6e8eb; opacity: .7; }
+.hours { display: flex; justify-content: space-between; font-size: 11px; color: var(--faint); }
+.events { display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: #b8c0c9; }
+.events .ev { display: grid; grid-template-columns: 76px 1fr; gap: 8px; }
+.events .ev time { color: var(--faint); font-variant-numeric: tabular-nums; }
+.events .denied { color: #ff8a8a; }
+.notice { background: #1b2433; border: 1px solid #2c3d57; border-radius: 10px; padding: 12px 16px; font-size: 13px; color: #c7d3e3; }
+.notice.bad { background: #2a1717; border-color: #5b2a2a; color: #ffb0b0; }
+.notice code { background: rgba(0, 0, 0, .3); padding: 1px 6px; border-radius: 4px; }
+.two { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); align-items: start; }
+
+/* Access dialog */
+#policy { width: min(860px, calc(100vw - 32px)); }
+.pbody { display: flex; flex-direction: column; gap: 18px; }
+.pbody h4 { margin: 0; font-size: 13px; color: var(--muted); font-weight: 600; }
+.rules { display: flex; flex-direction: column; gap: 8px; }
+.rulerow { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; background: #0f1115; border: 1px solid var(--line);
+  border-radius: 10px; padding: 10px 12px; }
+.daychips { display: flex; gap: 4px; }
+.daychip { width: 34px; height: 34px; border-radius: 6px; border: 0; font: inherit; font-size: 12px; cursor: pointer;
+  background: #222731; color: var(--faint); }
+.daychip[aria-pressed="true"] { background: var(--accent); color: #0b0d10; font-weight: 600; }
+.rulerow input, .limits input { min-height: 38px; background: var(--bg); border: 1px solid var(--line); border-radius: 8px;
+  color: var(--text); font: inherit; padding: 0 8px; color-scheme: dark; }
+.wgrid { display: grid; grid-template-columns: 34px repeat(24, minmax(0, 1fr)); gap: 3px; touch-action: none; user-select: none; }
+.wgrid span { font-size: 10px; color: var(--faint); text-align: center; }
+.wgrid .dl { font-size: 12px; color: #b8c0c9; text-align: left; align-self: center; }
+.wgrid .cell { height: 24px; border-radius: 3px; background: #222731; cursor: pointer; }
+.wgrid .cell.on { background: var(--accent); }
+.wgrid .cell.part { background: linear-gradient(90deg, var(--accent) 50%, #222731 50%); }
+.limits { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; }
+.limits label { display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: #b8c0c9; }
+.summary { background: #12151b; border-radius: 10px; padding: 12px 16px; font-size: 13px; color: #b8c0c9; }
+.dfoot { display: flex; justify-content: flex-end; gap: 8px; }
+#pin { width: min(360px, calc(100vw - 32px)); }
+#pin form { display: flex; flex-direction: column; gap: 14px; }
+#pin input { min-height: 48px; font-size: 22px; text-align: center; letter-spacing: .4em; background: var(--bg); color: var(--text);
+  border: 1px solid var(--line); border-radius: 10px; }
+.keypad { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.keypad button { min-height: 52px; border: 1px solid var(--line); background: var(--bg); color: var(--text); border-radius: 10px;
+  font: inherit; font-size: 18px; cursor: pointer; }
+.pinerr { font-size: 13px; color: #ff8a8a; min-height: 18px; }
+/* Network tab */
+.net-note { color: var(--muted); font-size: 13px; margin: 0; max-width: 90ch; }
+.net-layout { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 16px; align-items: start; }
+@media (max-width: 960px) { .net-layout { grid-template-columns: minmax(0, 1fr); } }
+.net-canvas { overflow-x: auto; background: var(--card); border: 1px solid var(--line); border-radius: 12px; }
+.net-canvas svg { display: block; width: 100%; min-width: 680px; height: auto; }
+.net-node, .net-link { cursor: pointer; outline: none; }
+.net-node rect { fill: var(--bg); stroke: currentColor; stroke-width: 1.5; }
+.net-node.root rect { stroke-width: 3; }
+.net-node:hover rect, .net-node:focus-visible rect, .net-node.sel rect { stroke-width: 4; }
+.net-node .ttl { fill: var(--text); font-size: 15px; font-weight: 600; }
+.net-node .sub { fill: var(--muted); font-size: 12px; }
+.net-node .grp { fill: var(--faint); font-size: 11px; }
+.net-node .dot { fill: currentColor; }
+.net-node .gly { fill: var(--bg); font-size: 13px; font-weight: 700; text-anchor: middle; }
+.net-link .wire { fill: none; stroke: currentColor; stroke-width: 2.5; }
+.net-link .hit { fill: none; stroke: transparent; stroke-width: 20; }
+.net-link:hover .wire, .net-link:focus-visible .wire, .net-link.sel .wire { stroke-width: 5; }
+.net-link .lbg { fill: var(--card); stroke: var(--line); }
+.net-link .lbl { fill: var(--text); font-size: 12px; text-anchor: middle; }
+.st-up { color: var(--ok); } .st-degraded { color: var(--warm); } .st-down { color: var(--hot); }
+.st-idle, .st-unknown { color: var(--faint); }
+.net-link.st-degraded .wire { stroke-dasharray: 10 5; }
+.net-link.st-down .wire { stroke-dasharray: 3 6; stroke-width: 3; }
+.net-link.st-idle .wire, .net-link.st-unknown .wire { stroke-dasharray: 2 7; stroke-linecap: round; }
+.net-stale .net-node .dot, .net-stale .net-link .wire { opacity: .45; }
+.net-stale .net-node rect { stroke: var(--faint); }
+.net-panel { padding: 14px 16px; min-width: 0; }
+.net-panel h3 { margin: 0 0 6px; font-size: 15px; color: var(--text); overflow-wrap: anywhere; }
+.net-panel .state { font-size: 13px; font-weight: 600; }
+.net-panel dl { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 4px 12px; margin: 10px 0 0; font-size: 13px; }
+.net-panel dt { color: var(--muted); } .net-panel dd { margin: 0; overflow-wrap: anywhere; }
+.net-legend { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 13px; color: var(--muted); }
+.net-legend span { display: inline-flex; align-items: center; gap: 6px; }
+.net-legend svg { width: 34px; height: 10px; }
+.tabs .alarm { width: 7px; height: 7px; border-radius: 50%; background: var(--hot); }
 </style>
 </head>
 <body>
 <div class="wrap" id="wrap">
   <header>
-    <div class="title"><h1 id="host">hwdash</h1><span class="sub" id="sub"></span></div>
+    <div class="title"><h1 id="host">hwdash</h1>
+      <nav class="tabs" id="tabs" hidden><button data-tab="mon" aria-selected="true"></button><button data-tab="stream" aria-selected="false" hidden></button><button data-tab="net" aria-selected="false" hidden></button></nav>
+      <span class="sub" id="sub"></span></div>
     <div class="tools">
       <span class="status" id="status"></span>
-      <div class="seg" id="ranges"></div>
-      <button class="btn" id="edit-btn" aria-pressed="false"></button>
+      <span class="tools" id="mon-tools"><span class="seg" id="ranges"></span><button class="btn" id="edit-btn" aria-pressed="false"></button></span>
     </div>
   </header>
+  <div class="page" id="page-mon">
   <div class="banner" id="banner" hidden>
     <span id="banner-text"></span>
     <div><button class="btn" id="reset-btn"></button><button class="btn primary" id="done-btn"></button></div>
@@ -128,6 +263,9 @@ dialog::backdrop { background: rgba(0, 0, 0, .6); }
   <section id="load-sec"><h2 id="h-load"></h2><div class="load-grid" id="load"></div></section>
   <section id="groups-sec"><h2 id="h-sensors"></h2><div class="groups" id="groups"></div></section>
   <div class="note" id="note"></div>
+  </div>
+  <div class="page" id="page-stream" hidden></div>
+  <div class="page" id="page-net" hidden></div>
 </div>
 
 <dialog id="detail">
@@ -135,6 +273,22 @@ dialog::backdrop { background: rgba(0, 0, 0, .6); }
   <div class="chart" id="d-chart"></div>
   <div class="axis" id="d-axis"></div>
   <div class="legend" id="d-legend"></div>
+</dialog>
+
+<dialog id="policy">
+  <div class="dhead"><h3 id="p-title"></h3><button class="close" id="p-close">×</button></div>
+  <div class="pbody" id="p-body"></div>
+</dialog>
+
+<dialog id="pin">
+  <form id="pin-form" method="dialog">
+    <div class="dhead"><h3 id="pin-title"></h3><button class="close" type="button" id="pin-close">×</button></div>
+    <span class="sub" id="pin-text"></span>
+    <input id="pin-input" type="password" inputmode="numeric" autocomplete="off" maxlength="32">
+    <div class="keypad" id="keypad"></div>
+    <span class="pinerr" id="pin-err" role="alert"></span>
+    <button class="btn primary" type="submit" id="pin-ok"></button>
+  </form>
 </dialog>
 
 <script>
@@ -444,6 +598,7 @@ async function loadNow() {
   if (age > 3 * now.info.step) setStatus(t("stale", { s: age }), true);
   else setStatus(t("updated", { t: new Date(now.ts * 1000).toLocaleTimeString(LANG) }));
   if (!editing) render();  // re-rendering while customizing would reset the inputs
+  if (typeof onNowLoaded === "function") onNowLoaded();
 }
 
 async function loadHist() {
@@ -536,6 +691,658 @@ document.addEventListener("input", (e) => {
   setInterval(loadNow, 10000);
   setInterval(loadHist, 60000);
 })();
+</script>
+<script>
+// ---- Streaming tab: Moonlight sessions and access schedules (server has [sunshine] enabled) ----
+Object.assign(I18N.en, {
+  tab_mon: "Monitoring", tab_stream: "Streaming",
+  s_unavailable: "Sunshine is not reachable: {e}", s_nopin: "To change access, set a PIN on the server: {cmd}",
+  s_none: "No active session", s_last: "Last: {name} · {app} · {from}–{to}", s_unknown: "Unknown device",
+  s_since: "since {t}", s_disc: "disconnected at {t}, the app is still running", s_left: "{d} left", s_today: "today {u} of {l}",
+  s_clients: "Devices", s_day: "Today", s_day_hint: "shaded — allowed time, bars — sessions", s_events: "Events today",
+  s_ev_none: "Nothing yet today.",
+  h_device: "Device", h_status: "Status", h_rule: "Rule", h_today: "Today",
+  st_online: "online", st_unmanaged: "not managed", st_always: "no limits", st_allowed: "allowed",
+  st_until: "until {t}", st_paused: "paused until {t}", st_limit: "limit used up", st_closed: "closed",
+  st_closed_until: "opens {t}", st_blocked: "blocked",
+  r_none: "no windows", r_always: "no limits", r_blocked: "always blocked", r_limit: "limit {l}",
+  a_plus15: "+15 min", a_plus60: "+1 h", a_open: "Open for 1 h", a_end: "End session", a_pause: "Pause till morning",
+  a_rules: "Access…", min_s: "min",
+  ev_denied: "denied ({r})", ev_enable: "access opened", ev_disable: "access closed", ev_close: "app closed: {d}",
+  ev_warn: "warned: {d} left", ev_extend: "+{d} min", ev_pause: "paused", ev_policy: "rules changed: {d}",
+  ev_end: "session ended", ev_clear: "extensions cleared",
+  ev_game_wait: "stream ended, the game waits {d}", ev_game_keep: "the game stays", ev_game_term: "closing the game: {d}",
+  ev_game_closed: "game closed", ev_game_gone: "the game ended by itself", ev_game_failed: "could not close the game",
+  g_wait: "{name}: time is up, the game is still running", g_closes: "closes in", g_closing: "Closing the game…",
+  g_orphan: "A game is running with no client connected", a_close_game: "Close now", g_unknown: "Game {id}",
+  why_closed: "outside allowed time", why_limit: "daily limit", why_blocked: "blocked", why_paused: "paused",
+  p_title: "{name} · access", m_unmanaged: "Don't manage", m_always: "No limits", m_schedule: "Schedule", m_blocked: "Blocked",
+  v_rules: "Rules", v_grid: "Week grid", p_windows: "When connecting is allowed", p_add: "+ Add window",
+  p_del: "Delete window", p_from: "from", p_to: "to", p_grid_hint: "Drag across the cells to paint or erase hours.",
+  p_limits: "Daily limit, minutes (empty — no limit)", p_weekday: "Mon–Fri", p_weekend: "Sat–Sun",
+  sum_unmanaged: "hwdash does not touch this device.", sum_always: "Can connect at any time; pauses still apply.",
+  sum_blocked: "Cannot connect until you allow it.", sum_today: "Today: {w}{l}. When the time runs out mid-game, a notification comes 10 and 2 minutes before, then the session ends and the device is locked until its next window.",
+  sum_none_today: "no windows today", sum_l: ", at most {l} in total",
+  cancel: "Cancel", save: "Save",
+  pin_title: "Enter PIN", pin_text: "Changing access needs the PIN. It stays unlocked for 15 minutes in this browser.",
+  pin_ok: "Unlock", pin_bad: "Wrong PIN", pin_wait: "Too many attempts, wait {s} s", pin_none: "No PIN is set on the server.",
+  days: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
+});
+Object.assign(I18N.ru, {
+  tab_mon: "Мониторинг", tab_stream: "Стриминг",
+  s_unavailable: "Sunshine недоступен: {e}", s_nopin: "Чтобы менять доступ, задайте PIN на сервере: {cmd}",
+  s_none: "Нет активной сессии", s_last: "Последняя: {name} · {app} · {from}–{to}", s_unknown: "Неизвестное устройство",
+  s_since: "с {t}", s_disc: "отключился в {t}, приложение ещё запущено", s_left: "осталось {d}", s_today: "сегодня {u} из {l}",
+  s_clients: "Устройства", s_day: "Сегодня", s_day_hint: "заливка — разрешённое время, полосы — сессии", s_events: "События за сегодня",
+  s_ev_none: "Сегодня пока ничего.",
+  h_device: "Устройство", h_status: "Статус", h_rule: "Правило", h_today: "Сегодня",
+  st_online: "в сети", st_unmanaged: "не управляется", st_always: "без ограничений", st_allowed: "разрешено",
+  st_until: "до {t}", st_paused: "пауза до {t}", st_limit: "лимит исчерпан", st_closed: "закрыто",
+  st_closed_until: "откроется {t}", st_blocked: "заблокирован",
+  r_none: "нет окон", r_always: "без ограничений", r_blocked: "всегда запрещено", r_limit: "лимит {l}",
+  a_plus15: "+15 мин", a_plus60: "+1 час", a_open: "Открыть на 1 ч", a_end: "Завершить", a_pause: "Пауза до утра",
+  a_rules: "Доступ…", min_s: "мин",
+  ev_denied: "отказано ({r})", ev_enable: "доступ открыт", ev_disable: "доступ закрыт", ev_close: "приложение закрыто: {d}",
+  ev_warn: "предупреждение: осталось {d}", ev_extend: "+{d} мин", ev_pause: "пауза", ev_policy: "правила изменены: {d}",
+  ev_end: "сессия завершена", ev_clear: "продления сброшены",
+  ev_game_wait: "стрим завершён, игра ждёт {d}", ev_game_keep: "игра оставлена", ev_game_term: "закрываем игру: {d}",
+  ev_game_closed: "игра закрыта", ev_game_gone: "игра завершилась сама", ev_game_failed: "не удалось закрыть игру",
+  g_wait: "{name}: время вышло, игра ещё запущена", g_closes: "закроется через", g_closing: "Закрываем игру…",
+  g_orphan: "Игра запущена, клиент не подключён", a_close_game: "Закрыть сейчас", g_unknown: "Игра {id}",
+  why_closed: "вне разрешённого времени", why_limit: "дневной лимит", why_blocked: "заблокирован", why_paused: "пауза",
+  p_title: "{name} · доступ", m_unmanaged: "Не управлять", m_always: "Без ограничений", m_schedule: "По расписанию", m_blocked: "Запрещено",
+  v_rules: "Правила", v_grid: "Сетка недели", p_windows: "Когда можно подключаться", p_add: "+ Добавить окно",
+  p_del: "Удалить окно", p_from: "с", p_to: "до", p_grid_hint: "Проведите мышью или пальцем по клеткам, чтобы закрасить или стереть часы.",
+  p_limits: "Лимит в день, минуты (пусто — без лимита)", p_weekday: "Пн–Пт", p_weekend: "Сб–Вс",
+  sum_unmanaged: "hwdash не трогает это устройство.", sum_always: "Подключаться можно в любое время; паузы действуют.",
+  sum_blocked: "Подключиться нельзя, пока вы не разрешите.", sum_today: "Сегодня: {w}{l}. Если время выйдет во время игры — уведомление за 10 и 2 минуты, затем сессия завершается и устройство закрывается до следующего окна.",
+  sum_none_today: "окон нет", sum_l: ", не больше {l} в сумме",
+  cancel: "Отмена", save: "Сохранить",
+  pin_title: "Введите PIN", pin_text: "Менять доступ можно только с PIN. В этом браузере он действует 15 минут.",
+  pin_ok: "Открыть", pin_bad: "Неверный PIN", pin_wait: "Слишком много попыток, подождите {s} с", pin_none: "PIN на сервере не задан.",
+  days: ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"],
+});
+
+let stream = null, tab = "mon", token = null, pending = null, draft = null, draftUuid = null, view = "rules", rules = [];
+let streamAt = 0;
+try { token = sessionStorage.getItem("hwdash-token"); } catch (e) {}
+
+const hm = (ts) => new Date(ts * 1000).toLocaleTimeString(LANG, { hour: "2-digit", minute: "2-digit" });
+const when = (ts) => {
+  const d = new Date(ts * 1000), today = new Date();
+  if (d.toDateString() === today.toDateString()) return hm(ts);
+  return `${t("days")[(d.getDay() + 6) % 7]} ${hm(ts)}`;
+};
+const dur = (s) => {
+  const m = Math.max(0, Math.round(s / 60));
+  return m >= 60 ? `${Math.floor(m / 60)} ${t("h")} ${String(m % 60).padStart(2, "0")} ${t("min_s")}` : `${m} ${t("min_s")}`;
+};
+const clockOf = (s) => {
+  s = Math.max(0, Math.floor(s));
+  const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sec = s % 60;
+  return `${h ? h + ":" : ""}${String(m).padStart(h ? 2 : 1, "0")}:${String(sec).padStart(2, "0")}`;
+};
+const mm = (m) => (m >= 1440 ? "24:00" : `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`);
+const TIME_RE = "([01]?\\d|2[0-3]):[0-5]\\d|24:00";  // 24-hour clock whatever the browser locale
+const toMin = (v) => {
+  if (!new RegExp(`^(${TIME_RE})$`).test(v.trim())) return null;
+  const [h, m] = v.trim().split(":").map(Number);
+  return h * 60 + m;
+};
+
+function dayRange(days) {
+  const names = t("days"), out = [];
+  for (let i = 0; i < days.length; i++) {
+    let j = i;
+    while (j + 1 < days.length && days[j + 1] === days[j] + 1) j++;
+    out.push(j - i >= 2 ? `${names[days[i]]}–${names[days[j]]}` : days.slice(i, j + 1).map((d) => names[d]).join(", "));
+    i = j;
+  }
+  return out.join(", ");
+}
+
+// Groups identical windows across days: [{days: [0..4], a: 960, b: 1200}, ...]
+function rulesFromDays(days) {
+  const map = new Map();
+  days.forEach((wins, d) => wins.forEach(([a, b]) => {
+    const k = `${a}-${b}`;
+    if (!map.has(k)) map.set(k, { days: [], a, b });
+    map.get(k).days.push(d);
+  }));
+  return [...map.values()].sort((x, y) => x.days[0] - y.days[0] || x.a - y.a);
+}
+function daysFromRules(list) {
+  const days = [[], [], [], [], [], [], []];
+  list.forEach((r) => r.a < r.b && r.days.forEach((d) => days[d].push([r.a, r.b])));
+  return days.map((w) => w.sort((x, y) => x[0] - y[0]));
+}
+
+function ruleSummary(p) {
+  if (p.mode === "unmanaged") return "—";
+  if (p.mode === "always") return t("r_always");
+  if (p.mode === "blocked") return t("r_blocked");
+  const groups = new Map();
+  p.days.forEach((wins, d) => {
+    if (!wins.length) return;
+    const k = wins.map(([a, b]) => `${mm(a)}–${mm(b)}`).join(", ");
+    groups.set(k, [...(groups.get(k) || []), d]);
+  });
+  const parts = [...groups].map(([w, ds]) => `${dayRange(ds)} ${w}`);
+  const lw = p.limit_weekday, le = p.limit_weekend;
+  if (lw != null || le != null) {
+    const l = lw === le ? `${lw} ${t("min_s")}` : `${lw ?? "∞"}/${le ?? "∞"} ${t("min_s")}`;
+    parts.push(t("r_limit", { l }));
+  }
+  return parts.length ? parts.join(" · ") : t("r_none");
+}
+
+function statusOf(c) {
+  const ev = c.eval;
+  if (c.online) return ["online", t("st_online")];
+  if (!ev.managed) return ["", t("st_unmanaged")];
+  if (ev.allowed) {
+    if (ev.reason === "always") return ["", t("st_always")];
+    const soon = ev.ends_at && ev.ends_at - stream.now < 900;
+    return [soon ? "soon" : "allowed", ev.ends_at ? t("st_until", { t: hm(ev.ends_at) }) : t("st_allowed")];
+  }
+  if (ev.reason === "paused") return ["closed", t("st_paused", { t: when(ev.opens_at) })];
+  if (ev.reason === "limit") return ["closed", t("st_limit")];
+  if (ev.reason === "blocked") return ["closed", t("st_blocked")];
+  return ["closed", ev.opens_at ? t("st_closed_until", { t: when(ev.opens_at) }) : t("st_closed")];
+}
+
+function usageText(c) {
+  const ev = c.eval;
+  return ev.limit_s != null ? t("s_today", { u: dur(ev.used_s), l: dur(ev.limit_s) }) : dur(ev.used_s);
+}
+
+function actionButtons(c, inSession) {
+  const ev = c.eval, b = (action, label, cls = "", minutes = "") =>
+    `<button class="btn ${inSession ? "" : "small"} ${cls}" data-act="${action}" data-uuid="${esc(c.uuid)}" data-min="${minutes}">${label}</button>`;
+  const out = [];
+  if (ev.managed && ev.reason !== "always") {
+    if (ev.allowed) out.push(b("extend", t("a_plus15"), "", 15));
+    else out.push(b("extend", t("a_open"), "", 60));
+    if (inSession) out.push(b("extend", t("a_plus60"), "", 60));
+  }
+  if (inSession) out.push(b("end", t("a_end"), "danger"));
+  if (inSession && ev.managed) out.push(b("pause_morning", t("a_pause")));
+  if (!inSession) out.push(`<button class="btn small" data-rules="${esc(c.uuid)}">${t("a_rules")}</button>`);
+  return out.join("");
+}
+
+function sessionCard() {
+  const s = stream.session;
+  if (!s) {
+    const last = stream.launches.find((l) => !l.denied && l.end_ts);
+    return `<div class="card session"><div class="who"><span class="dot"></span>${t("s_none")}</div>
+      ${last ? `<div class="meta">${esc(t("s_last", { name: last.name || "?", app: last.app || "?", from: hm(last.ts), to: hm(last.end_ts) }))}</div>` : ""}</div>`;
+  }
+  const c = stream.clients.find((x) => x.uuid === s.uuid);
+  const ev = c ? c.eval : null;
+  const left = ev && ev.managed && ev.ends_at ? ev.ends_at - stream.now : null;
+  const pct = ev && ev.limit_s ? Math.min(100, (100 * ev.used_s) / ev.limit_s) : null;
+  return `<div class="card session">
+    <div class="row"><div class="who"><span class="dot ${s.connected ? "on" : ""}"></span>${esc(s.name || t("s_unknown"))}</div>
+      ${left != null ? `<span class="chip ${left < 900 ? "soon" : "allowed"}">${t("s_left", { d: dur(left) })}</span>` : ""}</div>
+    <div class="val"><span class="timer" id="s-timer" data-since="${s.connected ? s.connected_since : ""}">${s.connected ? clockOf(stream.now - s.connected_since) : "—"}</span>
+      <span class="sub">${s.connected ? t("s_since", { t: hm(s.ts || s.connected_since) }) : t("s_disc", { t: hm(s.disconnected_since) })}</span></div>
+    <div class="meta">${[s.app, s.width && `${s.width}×${s.height} · ${s.fps} fps`, s.codec && `${s.codec}${s.bitrate ? ` · ${(s.bitrate / 1e6).toFixed(0)} Mbit/s` : ""}`]
+      .filter(Boolean).map((x) => `<span>${esc(x)}</span>`).join("")}</div>
+    ${pct != null ? `<div class="usage"><div class="${left != null && left < 900 ? "soon" : ""}" style="width:${pct.toFixed(1)}%"></div></div>
+      <div class="row mm"><span>${usageText(c)}</span>${ev.ends_at ? `<span>${t("st_until", { t: hm(ev.ends_at) })}</span>` : ""}</div>` : ""}
+    ${c ? `<div class="actions">${actionButtons(c, true)}</div>` : ""}
+  </div>`;
+}
+
+// A game with no stream: waiting for its grace period to end, or simply left running.
+function gameCard() {
+  const p = stream.game_close, games = stream.games || [];
+  if (!games.length || (!p && stream.session?.connected)) return "";
+  const names = games.map((g) => g.name || t("g_unknown", { id: g.app_id ?? g.pid })).join(", ");
+  const closeBtn = `<button class="btn danger" data-act="close_game" data-uuid="${esc(p?.uuid || "")}">${t("a_close_game")}</button>`;
+  if (p && p.term_at) return `<div class="card session"><div class="who"><span class="dot"></span>${t("g_closing")}</div><div class="meta">${esc(names)}</div></div>`;
+  if (!p) return `<div class="card session"><div class="who"><span class="dot"></span>${t("g_orphan")}</div><div class="meta">${esc(names)}</div><div class="actions">${closeBtn}</div></div>`;
+  const add = (min, label) => `<button class="btn" data-act="extend" data-uuid="${esc(p.uuid)}" data-min="${min}">${label}</button>`;
+  return `<div class="card session"><div class="who"><span class="dot"></span>${esc(t("g_wait", { name: p.name || "?" }))}</div>
+    <div class="val"><span class="sub">${t("g_closes")}</span><span class="timer" id="g-timer" data-at="${p.close_at}">${clockOf(p.close_at - stream.now)}</span></div>
+    <div class="meta">${esc(names)}</div>
+    <div class="actions">${add(15, t("a_plus15"))}${add(60, t("a_plus60"))}${closeBtn}</div></div>`;
+}
+
+function clientsTable() {
+  const rows = stream.clients.map((c) => {
+    const [cls, text] = statusOf(c), ev = c.eval;
+    const pct = ev.limit_s ? Math.min(100, (100 * ev.used_s) / ev.limit_s) : 0;
+    return `<div class="crow"><span class="cn">${esc(c.name)}</span><span class="chip ${cls}">${esc(text)}</span>
+      <span class="rule">${esc(ruleSummary(c.policy))}</span>
+      <div class="used">${ev.limit_s ? `<div class="usage"><div style="width:${pct.toFixed(1)}%"></div></div>` : ""}<span>${usageText(c)}</span></div>
+      <div class="actions">${actionButtons(c, false)}</div></div>`;
+  }).join("");
+  return `<div class="ctable"><div class="crow head"><span>${t("h_device")}</span><span>${t("h_status")}</span><span>${t("h_rule")}</span><span>${t("h_today")}</span><span></span></div>${rows}</div>`;
+}
+
+function dayLanes() {
+  const d0 = stream.day_start, pos = (a, b) => `left:${((a - d0) / 864).toFixed(3)}%;width:${(Math.max(0, b - a) / 864).toFixed(3)}%`;
+  const lanes = stream.clients.map((c) => `<div class="lane"><span class="name">${esc(c.name)}</span><div class="track">
+      ${c.windows.map(([a, b]) => `<i class="win" style="${pos(a, b)}"></i>`).join("")}
+      ${c.usage.map(([a, b]) => `<i class="use ${c.online && Math.abs(b - stream.now) < 30 ? "live" : ""}" style="${pos(a, b)}"></i>`).join("")}
+      <i class="nowline" style="left:${((stream.now - d0) / 864).toFixed(3)}%"></i></div></div>`).join("");
+  return `<div class="card lanes">${lanes}<div class="lane"><span></span><div class="hours"><span>00</span><span>06</span><span>12</span><span>18</span><span>24</span></div></div></div>`;
+}
+
+function eventsList() {
+  const names = Object.fromEntries(stream.clients.map((c) => [c.uuid, c.name]));
+  const why = (r) => t("why_" + r) || r;
+  const evs = [
+    ...stream.launches.map((l) => ({ ts: l.ts, text: `${l.name || "?"} — ${l.app || "?"}${l.denied ? " · " + t("ev_denied", { r: why(l.reason) }) : ""}`, bad: l.denied })),
+    ...stream.actions.map((a) => {
+      const key = { enable: "ev_enable", disable: "ev_disable", close: "ev_close", warn: "ev_warn", extend: "ev_extend",
+        pause_today: "ev_pause", pause_morning: "ev_pause", policy: "ev_policy", end: "ev_end", clear: "ev_clear",
+        game_wait: "ev_game_wait", game_keep: "ev_game_keep", game_term: "ev_game_term", game_closed: "ev_game_closed",
+        game_gone: "ev_game_gone", game_failed: "ev_game_failed" }[a.action];
+      return { ts: a.ts, text: `${names[a.uuid] || "?"} — ${key ? t(key, { d: a.detail }) : a.action}`, bad: ["close", "disable", "game_wait", "game_term", "game_failed"].includes(a.action) };
+    }),
+  ].sort((a, b) => b.ts - a.ts).slice(0, 20);
+  return `<div class="card events">${evs.length ? evs.map((e) => `<div class="ev"><time>${hm(e.ts)}</time><span class="${e.bad ? "denied" : ""}">${esc(e.text)}</span></div>`).join("") : t("s_ev_none")}</div>`;
+}
+
+function renderStream() {
+  const live = stream?.session?.connected;
+  $("tabs").querySelector('[data-tab="stream"]').innerHTML = `${t("tab_stream")}${live ? '<i class="live"></i>' : ""}`;
+  if (tab !== "stream" || !stream) return;
+  const notices = [
+    !stream.available ? `<div class="notice bad">${esc(t("s_unavailable", { e: stream.error }))}</div>` : "",
+    !stream.pin_set ? `<div class="notice">${t("s_nopin", { cmd: "<code>python3 hwdash.py set-pin</code>" })}</div>` : "",
+  ].join("");
+  $("page-stream").innerHTML = `${notices}${gameCard()}${sessionCard()}
+    <section><h2>${t("s_clients")}</h2>${clientsTable()}</section>
+    <div class="two">
+      <section><div class="row"><h2>${t("s_day")}</h2><span class="mm">${t("s_day_hint")}</span></div>${dayLanes()}</section>
+      <section><h2>${t("s_events")}</h2>${eventsList()}</section>
+    </div>`;
+}
+
+async function loadStream() {
+  try {
+    const r = await fetch("api/stream", { headers: token ? { "X-Hwdash-Token": token } : {} });
+    stream = await r.json();
+    streamAt = Date.now();
+  } catch (e) { return; }
+  if (token && !stream.authorized) saveToken(null);
+  renderStream();
+}
+
+function saveToken(v) {
+  token = v;
+  try { v ? sessionStorage.setItem("hwdash-token", v) : sessionStorage.removeItem("hwdash-token"); } catch (e) {}
+}
+
+async function send(method, path, body) {
+  const r = await fetch(path, { method, headers: { "Content-Type": "application/json", "X-Hwdash-Token": token || "" }, body: JSON.stringify(body) });
+  if (r.status === 401) { saveToken(null); throw new Error("auth"); }
+  const data = await r.json();
+  if (!r.ok) throw new Error(data.error || r.status);
+  stream = data;
+  renderStream();
+}
+
+// Runs fn now when unlocked, or after the PIN dialog succeeds.
+function withPin(fn) {
+  if (!stream.pin_set) { alert(t("pin_none")); return; }
+  if (stream.authorized && token) {
+    fn().catch((e) => (e.message === "auth" ? withPin(fn) : alert(e.message)));
+    return;
+  }
+  pending = fn;
+  $("pin-input").value = "";
+  $("pin-err").textContent = "";
+  $("pin").showModal();
+  $("pin-input").focus();
+}
+
+$("pin-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const r = await fetch("api/stream/login", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ pin: $("pin-input").value }) });
+  const data = await r.json();
+  if (!r.ok) {
+    $("pin-err").textContent = data.error === "no_pin" ? t("pin_none") : data.wait ? t("pin_wait", { s: data.wait }) : t("pin_bad");
+    $("pin-input").value = "";
+    return;
+  }
+  saveToken(data.token);
+  stream.authorized = true;
+  $("pin").close();
+  const fn = pending;
+  pending = null;
+  if (fn) fn().catch((err) => alert(err.message));
+});
+$("keypad").innerHTML = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "", "0", "⌫"]
+  .map((k) => (k ? `<button type="button" data-key="${k}">${k}</button>` : "<span></span>")).join("");
+$("keypad").addEventListener("click", (e) => {
+  const k = e.target.dataset.key;
+  if (!k) return;
+  const inp = $("pin-input");
+  inp.value = k === "⌫" ? inp.value.slice(0, -1) : inp.value + k;
+});
+$("pin-close").addEventListener("click", () => { pending = null; $("pin").close(); });
+
+// ---- access dialog: mode, rules or week grid, limits ----
+function openPolicy(uuid) {
+  const c = stream.clients.find((x) => x.uuid === uuid);
+  draftUuid = uuid;
+  draft = JSON.parse(JSON.stringify({ mode: c.policy.mode, days: c.policy.days, limit_weekday: c.policy.limit_weekday, limit_weekend: c.policy.limit_weekend }));
+  if (draft.mode === "unmanaged" && !draft.days.some((d) => d.length)) draft.days = [...Array(5).fill([[960, 1200]]), [[600, 1260]], [[600, 1260]]].map((w) => w.map((x) => [...x]));
+  rules = rulesFromDays(draft.days);
+  view = "rules";
+  $("p-title").textContent = t("p_title", { name: c.name });
+  renderPolicy();
+  $("policy").showModal();
+}
+
+function syncDays() { if (view === "rules") draft.days = daysFromRules(rules); }
+
+function renderPolicy() {
+  const modes = ["unmanaged", "always", "schedule", "blocked"];
+  const seg = (items, cur, attr) => `<div class="seg">${items.map(([v, label]) => `<button type="button" ${attr}="${v}" aria-pressed="${v === cur}">${label}</button>`).join("")}</div>`;
+  let editor = "";
+  if (draft.mode === "schedule") {
+    const names = t("days");
+    const list = view === "rules"
+      ? `<div class="rules">${rules.map((r, i) => `<div class="rulerow">
+          <div class="daychips">${names.map((n, d) => `<button type="button" class="daychip" data-rd="${i}:${d}" aria-pressed="${r.days.includes(d)}">${n}</button>`).join("")}</div>
+          <input type="text" inputmode="numeric" maxlength="5" pattern="${TIME_RE}" data-rt="${i}:a" value="${mm(r.a)}" aria-label="${t("p_from")}"> – <input type="text" inputmode="numeric" maxlength="5" pattern="${TIME_RE}" data-rt="${i}:b" value="${mm(r.b)}" aria-label="${t("p_to")}">
+          <span style="flex:1"></span><button type="button" class="close" data-rx="${i}" aria-label="${t("p_del")}">×</button></div>`).join("")}
+          <button type="button" class="btn" data-radd="1" style="align-self:flex-start">${t("p_add")}</button></div>`
+      : gridHtml();
+    editor = `<h4>${t("p_windows")}</h4>${seg([["rules", t("v_rules")], ["grid", t("v_grid")]], view, "data-view")}${list}
+      <h4>${t("p_limits")}</h4><div class="limits">
+        <label>${t("p_weekday")}<input type="number" min="0" max="1440" step="15" data-limit="limit_weekday" value="${draft.limit_weekday ?? ""}"></label>
+        <label>${t("p_weekend")}<input type="number" min="0" max="1440" step="15" data-limit="limit_weekend" value="${draft.limit_weekend ?? ""}"></label></div>`;
+  }
+  $("p-body").innerHTML = `${seg(modes.map((m) => [m, t("m_" + m)]), draft.mode, "data-mode")}${editor}
+    <div class="summary" id="p-sum">${policySummary()}</div>
+    <div class="dfoot"><button type="button" class="btn" data-pcancel="1">${t("cancel")}</button><button type="button" class="btn primary" data-psave="1">${t("save")}</button></div>`;
+}
+
+function gridHtml() {
+  const names = t("days");
+  const head = `<span></span>${Array.from({ length: 24 }, (_, h) => `<span>${h % 3 ? "" : String(h).padStart(2, "0")}</span>`).join("")}`;
+  const rows = draft.days.map((wins, d) => `<span class="dl">${names[d]}</span>${Array.from({ length: 24 }, (_, h) => {
+    const cov = wins.reduce((s, [a, b]) => s + Math.max(0, Math.min(b, h * 60 + 60) - Math.max(a, h * 60)), 0);
+    return `<div class="cell ${cov >= 60 ? "on" : cov > 0 ? "part" : ""}" data-gc="${d}:${h}"></div>`;
+  }).join("")}`).join("");
+  return `<div class="wgrid" id="wgrid">${head}${rows}</div><span class="mm">${t("p_grid_hint")}</span>`;
+}
+
+function policySummary() {
+  if (draft.mode !== "schedule") return t("sum_" + draft.mode);
+  syncDays();
+  const wd = (new Date().getDay() + 6) % 7, wins = draft.days[wd];
+  const lim = wd >= 5 ? draft.limit_weekend : draft.limit_weekday;
+  return t("sum_today", { w: wins.length ? wins.map(([a, b]) => `${mm(a)}–${mm(b)}`).join(", ") : t("sum_none_today"),
+                          l: lim != null ? t("sum_l", { l: dur(lim * 60) }) : "" });
+}
+
+// Week grid painting: press on a cell, drag across others; works with touch.
+let painting = null;
+function paintAt(x, y) {
+  const el = document.elementFromPoint(x, y);
+  if (!el || !el.dataset.gc) return;
+  const [d, h] = el.dataset.gc.split(":").map(Number);
+  const bits = Array.from({ length: 24 }, (_, i) => draft.days[d].reduce((s, [a, b]) => s + Math.max(0, Math.min(b, i * 60 + 60) - Math.max(a, i * 60)), 0) >= 30);
+  if (bits[h] === painting) return;
+  bits[h] = painting;
+  const wins = [];
+  bits.forEach((on, i) => { if (on) { if (wins.length && wins[wins.length - 1][1] === i * 60) wins[wins.length - 1][1] += 60; else wins.push([i * 60, i * 60 + 60]); } });
+  draft.days[d] = wins;
+  el.className = `cell ${painting ? "on" : ""}`;
+  $("p-sum").textContent = policySummary();
+}
+$("p-body").addEventListener("pointerdown", (e) => {
+  if (!e.target.dataset.gc) return;
+  e.preventDefault();
+  painting = !e.target.classList.contains("on");
+  paintAt(e.clientX, e.clientY);
+});
+document.addEventListener("pointermove", (e) => painting !== null && paintAt(e.clientX, e.clientY));
+document.addEventListener("pointerup", () => (painting = null));
+
+$("p-body").addEventListener("click", (e) => {
+  const ds = e.target.dataset;
+  if (ds.mode) { syncDays(); draft.mode = ds.mode; rules = rulesFromDays(draft.days); renderPolicy(); }
+  else if (ds.view) { syncDays(); view = ds.view; rules = rulesFromDays(draft.days); renderPolicy(); }
+  else if (ds.rd) {
+    const [i, d] = ds.rd.split(":").map(Number), r = rules[i];
+    r.days = r.days.includes(d) ? r.days.filter((x) => x !== d) : [...r.days, d].sort();
+    renderPolicy();
+  } else if (ds.rx) { rules.splice(Number(ds.rx), 1); renderPolicy(); }
+  else if (ds.radd) { rules.push({ days: [0, 1, 2, 3, 4], a: 960, b: 1200 }); renderPolicy(); }
+  else if (ds.pcancel) $("policy").close();
+  else if (ds.psave) {
+    syncDays();
+    const body = { uuid: draftUuid, policy: draft };
+    withPin(async () => { await send("PUT", "api/stream/policy", body); $("policy").close(); });
+  }
+});
+$("p-body").addEventListener("change", (e) => {
+  const ds = e.target.dataset;
+  if (ds.rt) {
+    const [i, edge] = ds.rt.split(":"), v = toMin(e.target.value);
+    if (v == null) { e.target.value = mm(rules[Number(i)][edge]); return; }
+    rules[Number(i)][edge] = v;
+    e.target.value = mm(v);
+    $("p-sum").textContent = policySummary();
+  } else if (ds.limit) {
+    const v = e.target.value.trim();
+    draft[ds.limit] = v === "" ? null : Math.max(0, Math.min(1440, Math.round(Number(v))));
+    $("p-sum").textContent = policySummary();
+  }
+});
+$("p-close").addEventListener("click", () => $("policy").close());
+
+$("page-stream").addEventListener("click", (e) => {
+  const b = e.target.closest("button");
+  if (!b) return;
+  if (b.dataset.rules) { openPolicy(b.dataset.rules); return; }
+  if (!b.dataset.act) return;
+  const body = { uuid: b.dataset.uuid, action: b.dataset.act, ...(b.dataset.min ? { minutes: Number(b.dataset.min) } : {}) };
+  withPin(() => send("POST", "api/stream/action", body));
+});
+
+// ---- Network tab: VPN map with reachability from this machine (server has [topology] enabled) ----
+Object.assign(I18N.en, {
+  tab_net: "Network", n_note: "Node colour is a ping from this machine. Link colour is the tunnel state reported by the router, when one is configured; otherwise it follows the ping.",
+  n_up: "Up", n_degraded: "Degraded", n_down: "Down", n_idle: "Offline", n_unknown: "No data",
+  n_stale: "No fresh data since {t}: the current state is unknown.", n_wait: "First check is running…",
+  n_pick: "Select a node or a link to see details.", n_link: "Link to {p}", n_type: "Link", n_group: "Group", n_address: "Address",
+  n_rtt: "RTT min / avg / max", n_loss: "Loss", n_since: "State since", n_last: "Last reply", n_target: "Checked by", n_ping: "ping {t}",
+  n_noprobe: "Not checked: no address to ping.", n_blocked: "Unknown: the node it is reached through is down.",
+  n_ms: "ms", n_cpu: "Router CPU", n_mem: "Router memory", n_up_t: "Router uptime",
+  n_hs: "Last handshake", n_ago: "{s} s ago", n_session: "Session", n_nosession: "no session", n_from: "From the node", n_to: "To the node",
+  n_src: "Link state comes from the router; node state from ping.", n_mbit: "Mbit/s", n_d: "d", n_h: "h", n_m: "min",
+});
+Object.assign(I18N.ru, {
+  tab_net: "Сеть", n_note: "Цвет узла — пинг с этого компьютера. Цвет линка — состояние туннеля по данным роутера; там, где данных нет, линк повторяет пинг.",
+  n_up: "Работает", n_degraded: "Деградация", n_down: "Не работает", n_idle: "Не в сети", n_unknown: "Нет данных",
+  n_stale: "Свежих данных нет с {t}: текущее состояние неизвестно.", n_wait: "Идёт первая проверка…",
+  n_pick: "Выберите узел или линк, чтобы увидеть детали.", n_link: "Линк до узла {p}", n_type: "Линк", n_group: "Группа", n_address: "Адрес",
+  n_rtt: "RTT мин / сред / макс", n_loss: "Потери", n_since: "Состояние с", n_last: "Последний ответ", n_target: "Проверка", n_ping: "ping {t}",
+  n_noprobe: "Не проверяется: нет адреса для пинга.", n_blocked: "Неизвестно: узел, через который он доступен, не работает.",
+  n_ms: "мс", n_cpu: "CPU роутера", n_mem: "Память роутера", n_up_t: "Роутер работает",
+  n_hs: "Последний handshake", n_ago: "{s} с назад", n_session: "Сессия", n_nosession: "нет сессии", n_from: "От узла", n_to: "К узлу",
+  n_src: "Цвет линка показывает состояние туннеля на роутере, цвет узла — пинг.", n_mbit: "Мбит/с", n_d: "д", n_h: "ч", n_m: "мин",
+});
+const NET_GLYPH = { up: "✓", degraded: "!", down: "×", idle: "–", unknown: "?" };
+const NET_DASH = { up: "", degraded: "10 5", down: "3 6", idle: "2 7", unknown: "2 7" };
+const NET_W = 1000, NET_H = 600, NODE_W = 216, NODE_H = 78;
+let net = null, netAt = 0, netSel = null, netShape = "";
+
+function netPositions(nodes) {
+  // The root sits in the centre, the rest on a ring in config order, clockwise from the top.
+  const others = nodes.filter((n) => n.parent), pos = {};
+  pos[nodes.find((n) => !n.parent).id] = [NET_W / 2, NET_H / 2];
+  others.forEach((n, i) => {
+    const a = -Math.PI / 2 + (2 * Math.PI * i) / others.length;
+    pos[n.id] = [NET_W / 2 + 385 * Math.cos(a), NET_H / 2 + 225 * Math.sin(a)];
+  });
+  return pos;
+}
+
+function netBuild() {
+  const nodes = net.nodes, pos = netPositions(nodes);
+  const links = nodes.filter((n) => n.parent).map((n) => {
+    const [x1, y1] = pos[n.parent], [x2, y2] = pos[n.id], mx = (x1 + x2) / 2, my = (y1 + y2) / 2;
+    const w = n.link.length * 7 + 16;
+    const label = n.link ? `<rect class="lbg" x="${mx - w / 2}" y="${my - 12}" width="${w}" height="24" rx="5"/><text class="lbl" x="${mx}" y="${my + 4}">${esc(n.link)}</text>` : "";
+    return `<g class="net-link" data-id="${esc(n.id)}" tabindex="0" role="button"><line class="hit" x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}"/><line class="wire" x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}"/>${label}</g>`;
+  }).join("");
+  const boxes = nodes.map((n) => {
+    const [cx, cy] = pos[n.id], x = cx - NODE_W / 2, y = cy - NODE_H / 2;
+    return `<g class="net-node ${n.parent ? "" : "root"}" data-id="${esc(n.id)}" tabindex="0" role="button">
+      <rect x="${x}" y="${y}" width="${NODE_W}" height="${NODE_H}" rx="10"/>
+      <text class="grp" x="${x + 14}" y="${y + 20}">${esc(n.group)}</text>
+      <text class="ttl" x="${x + 14}" y="${y + 42}">${esc(n.title)}</text>
+      <text class="sub" x="${x + 14}" y="${y + 62}">${esc(n.subtitle)}</text>
+      <circle class="dot" cx="${x + NODE_W - 18}" cy="${y + 18}" r="10"/><text class="gly" x="${x + NODE_W - 18}" y="${y + 23}"></text></g>`;
+  }).join("");
+  const legend = ["up", "degraded", "down", "idle", "unknown"].map((s) =>
+    `<span class="st-${s}"><svg viewBox="0 0 34 10" aria-hidden="true"><line x1="0" y1="5" x2="34" y2="5" stroke="currentColor" stroke-width="2.5" stroke-dasharray="${NET_DASH[s]}"/></svg><span style="color:var(--muted)">${NET_GLYPH[s]} ${t("n_" + s)}</span></span>`).join("");
+  $("page-net").innerHTML = `<p class="net-note">${esc(t("n_note"))}</p><div class="notice" id="net-notice" hidden></div>
+    <div class="net-layout"><div class="net-canvas"><svg id="net-map" viewBox="0 0 ${NET_W} ${NET_H}" role="group" aria-label="${esc(t("tab_net"))}">${links}${boxes}</svg></div>
+    <div class="card net-panel" id="net-panel" aria-live="polite"></div></div><div class="net-legend">${legend}</div>`;
+  const canvas = $("net-map").parentElement;
+  canvas.scrollLeft = (canvas.scrollWidth - canvas.clientWidth) / 2;  // phones: start on the hub
+  const pick = (e) => {
+    const g = e.target.closest(".net-node, .net-link");
+    if (g) { netSel = `${g.classList.contains("net-node") ? "node" : "link"}:${g.dataset.id}`; netPaint(); }
+  };
+  $("net-map").addEventListener("click", pick);
+  $("net-map").addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); pick(e); } });
+}
+
+function netPanel() {
+  const box = $("net-panel");
+  if (!netSel) { box.innerHTML = `<span class="sub">${esc(t("n_pick"))}</span>`; return; }
+  const [kind, id] = netSel.split(":"), n = net.nodes.find((x) => x.id === id);
+  if (!n) { netSel = null; netPanel(); return; }
+  const parent = net.nodes.find((x) => x.id === n.parent);
+  const when = (ts) => ts ? new Date(ts * 1000).toLocaleString(LANG, { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }) : "—";
+  const dur = (s) => s >= 86400 ? `${Math.floor(s / 86400)} ${t("n_d")} ${Math.floor(s / 3600) % 24} ${t("n_h")}` : s >= 3600 ? `${Math.floor(s / 3600)} ${t("n_h")} ${Math.floor(s / 60) % 60} ${t("n_m")}` : `${Math.floor(s / 60)} ${t("n_m")}`;
+  const mbit = (b) => `${(b / 1e6).toFixed(b < 1e7 ? 2 : 1)} ${t("n_mbit")}`;
+  const rows = [], tun = n.tunnel, router = n.router;
+  if (kind === "node" && n.subtitle) rows.push([t("n_address"), n.subtitle]);
+  if (n.group) rows.push([t("n_group"), n.group]);
+  if (n.link) rows.push([t("n_type"), n.link]);
+  if (kind === "link" && tun) {
+    if (tun.handshake_age != null) rows.push([t("n_hs"), t("n_ago", { s: tun.handshake_age })]);
+    if (tun.session != null) rows.push([t("n_session"), tun.session ? dur(tun.uptime || 0) : t("n_nosession")]);
+    if (tun.rx_bps != null) rows.push([t("n_from"), mbit(tun.rx_bps)], [t("n_to"), mbit(tun.tx_bps)]);
+  }
+  if (kind === "node" && router) {
+    if (router.cpu != null) rows.push([t("n_cpu"), `${router.cpu}%`]);
+    if (router.mem != null) rows.push([t("n_mem"), `${router.mem}%`]);
+    if (router.uptime != null) rows.push([t("n_up_t"), dur(router.uptime)]);
+  }
+  if (n.rtt_avg != null) rows.push([t("n_rtt"), `${n.rtt_min.toFixed(1)} / ${n.rtt_avg.toFixed(1)} / ${n.rtt_max.toFixed(1)} ${t("n_ms")}`]);
+  if (n.loss != null) rows.push([t("n_loss"), `${Math.round(n.loss)}%`]);
+  if (n.since) rows.push([t("n_since"), when(n.since)]);
+  if (n.state !== "up" && n.last_ok) rows.push([t("n_last"), when(n.last_ok)]);
+  if (n.ping) rows.push([t("n_target"), t("n_ping", { t: n.ping })]);
+  const why = n.blocked ? t("n_blocked") : n.ping ? "" : t("n_noprobe");
+  const shown = kind === "link" ? n.link_state : n.state;
+  box.innerHTML = `<h3>${esc(kind === "link" && parent ? t("n_link", { p: parent.title }) + " · " + n.title : n.title)}</h3>
+    <span class="state st-${shown}">${NET_GLYPH[shown]} ${esc(t("n_" + shown))}</span>
+    ${why ? `<p class="sub" style="margin:8px 0 0">${esc(why)}</p>` : ""}
+    <dl>${rows.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join("")}</dl>
+    ${tun ? `<p class="sub" style="margin:10px 0 0">${esc(t("n_src"))}</p>` : ""}`;
+}
+
+function netPaint() {
+  // Stale when the server stopped checking, or when this page stopped reaching the server.
+  const limit = (net?.interval || 15) * 3;
+  const stale = !net || !net.ts || net.now - net.ts > limit || Date.now() - netAt > limit * 1000;
+  const down = net?.nodes.some((n) => n.state === "down" || n.link_state === "down");
+  $("tabs").querySelector('[data-tab="net"]').innerHTML = `${t("tab_net")}${down ? '<i class="alarm"></i>' : ""}`;
+  if (tab !== "net" || !net) return;
+  const shape = JSON.stringify(net.nodes.map((n) => [n.id, n.parent, n.title, n.subtitle, n.group, n.link]));
+  if (shape !== netShape || !$("net-map")) { netShape = shape; netBuild(); }
+  const map = $("net-map");
+  map.classList.toggle("net-stale", stale);
+  for (const n of net.nodes) {
+    for (const [cls, kind, state] of [["net-node", "node", n.state], ["net-link", "link", n.link_state]]) {
+      const g = map.querySelector(`.${cls}[data-id="${CSS.escape(n.id)}"]`);
+      if (!g) continue;
+      g.classList.remove("st-up", "st-degraded", "st-down", "st-idle", "st-unknown");
+      g.classList.add(`st-${state}`);
+      g.classList.toggle("sel", netSel === `${kind}:${n.id}`);
+      g.setAttribute("aria-label", `${n.title}: ${t("n_" + state)}`);
+      const gly = g.querySelector(".gly");
+      if (gly) gly.textContent = NET_GLYPH[state];
+    }
+  }
+  const notice = $("net-notice");
+  const msg = !net.ts ? t("n_wait") : stale ? t("n_stale", { t: new Date(netAt).toLocaleTimeString(LANG) }) : "";
+  notice.hidden = !msg;
+  notice.textContent = msg;
+  netPanel();
+}
+
+async function loadNet() {
+  try {
+    const r = await fetch("api/topology");
+    if (!r.ok) throw new Error(r.status);
+    net = await r.json();
+    netAt = Date.now();
+  } catch (e) { /* keep the last data: netPaint marks it as stale */ }
+  netPaint();
+}
+
+function setTab(name) {
+  tab = name;
+  $("page-mon").hidden = name !== "mon";
+  $("page-stream").hidden = name !== "stream";
+  $("page-net").hidden = name !== "net";
+  $("mon-tools").hidden = name !== "mon";
+  $("tabs").querySelectorAll("button").forEach((b) => b.setAttribute("aria-selected", b.dataset.tab === name));
+  history.replaceState(null, "", name === "mon" ? location.pathname + location.search : `#${name}`);
+  if (name === "stream") loadStream(); else if (name === "net") loadNet(); else render();
+}
+$("tabs").addEventListener("click", (e) => { const b = e.target.closest("button"); if (b) setTab(b.dataset.tab); });
+
+function onNowLoaded() {
+  if ((!now.info.stream && !now.info.topology) || !$("tabs").hidden) return;
+  $("tabs").hidden = false;
+  $("tabs").querySelector('[data-tab="mon"]').textContent = t("tab_mon");
+  $("tabs").querySelector('[data-tab="stream"]').hidden = !now.info.stream;
+  $("tabs").querySelector('[data-tab="net"]').hidden = !now.info.topology;
+  const wanted = location.hash.slice(1);
+  setTab((wanted === "stream" && now.info.stream) || (wanted === "net" && now.info.topology) ? wanted : "mon");
+  if (now.info.stream && tab !== "stream") loadStream();
+  if (now.info.topology && tab !== "net") loadNet();
+}
+
+$("pin-title").textContent = t("pin_title");
+$("pin-text").textContent = t("pin_text");
+$("pin-ok").textContent = t("pin_ok");
+$("p-close").setAttribute("aria-label", t("close"));
+$("pin-close").setAttribute("aria-label", t("close"));
+
+// Every 15 s on the Network tab (60 s elsewhere, for the alarm dot).
+setInterval(() => {
+  if (now?.info?.topology && (tab === "net" || Date.now() - netAt > 60000)) loadNet();
+}, 15000);
+// Every 5 s on the Streaming tab (30 s elsewhere, for the live dot); the session timer ticks every second.
+setInterval(() => {
+  if (!now?.info?.stream || $("policy").open) return;
+  if (tab === "stream" || Date.now() - streamAt > 30000) loadStream();
+}, 5000);
+setInterval(() => {
+  const el = document.getElementById("s-timer");
+  if (el && el.dataset.since && stream) el.textContent = clockOf(stream.now + (Date.now() - streamAt) / 1000 - Number(el.dataset.since));
+  const gt = document.getElementById("g-timer");
+  if (gt && stream) gt.textContent = clockOf(Number(gt.dataset.at) - stream.now - (Date.now() - streamAt) / 1000);
+}, 1000);
 </script>
 </body>
 </html>
