@@ -27,6 +27,7 @@
 # game_close_grace_minutes = 5              # after the stream ends: time to add minutes before the game is closed
 # game_process = '^\S*reaper SteamLaunch AppId=(\d+)'  # regex on the cmdline; "" = never close games
 # notify = ["notify-send", "-u", "critical", "-a", "Moonlight", "Moonlight", "{message}"]
+# notify_seconds = 15                       # remove it after this long (default notify, needs python3-gi); 0 = leave it
 # lang = "en"                               # notification language: en | ru
 # tick = 5
 
@@ -61,6 +62,27 @@
 #   credentials = "~/.config/hwdash/topology.cred"  # "user:password", mode 600
 # Node options: api = "http://192.0.2.1" on a router;
 #   tunnel_if = "Wireguard2" or tunnel_user = "laptop" (SSTP login) on its child.
+#
+# Public VPN exits: a table under the map. Each is checked with a real request through it.
+# `at` is a node id (shown by its title) or any other label.
+# [topology] options: exit_interval = 60, speed_interval = 3600, geo_interval = 900,
+#   state_file = "~/.local/share/hwdash/exits.json"   # keep speed history across restarts
+# [[topology.exits]]
+# id = "vpn"
+# title = "VPN"
+# at = "hub"
+# proxy = "socks5h://127.0.0.1:1080"   # empty = direct, for an exit applied by routing
+# ssh = ""                             # run on another host with an ssh alias and a key
+# probe = ""                           # with ssh: run this fixed command with check|speed|geo
+# check = "https://www.google.com/generate_204"  # any HTTP answer counts as alive
+# speed = "https://proof.ovh.net/files/100Mb.dat"  # empty = no speed sample
+# speed_streams = 4                    # connections at once, added up; a VPN often caps one
+# speed_bytes = 5000000                # bytes per connection (needs a server with range requests)
+# active_via = ""                      # shared port of a failover pair: marks the exit it currently uses
+# backup = false                       # this exit is the reserve: the row warns while it is in use
+# purpose = ""                         # what this exit is for, shown in its own column
+# lag_warn_ms = 1500                   # slower first byte = "high lag"
+# speed_warn_mbit = 2                  # lower = "low speed"; under half of its usual = "speed dropped"
 
 # Per-sensor defaults. The key is the sensor id shown at the bottom of each tile
 # in Customize mode: "t:<driver>/<label>" for temperatures, "f:<driver>/<label>"
@@ -84,3 +106,11 @@
 #
 # [sensors."f:nct6687/fan1"]
 # title = "CPU fan"
+
+# Another local web app shown as a tab, reached through this server at /embed/<id>/.
+# Only cookies and the content type are forwarded; the app must do its own login,
+# and must use relative URLs.
+# [[embeds]]
+# id = "notes"
+# title = "Notes"
+# upstream = "http://127.0.0.1:9000"

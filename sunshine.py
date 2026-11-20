@@ -27,6 +27,7 @@ import signal
 import sqlite3
 import ssl
 import subprocess
+import sys
 import threading
 import time
 import urllib.error
@@ -41,11 +42,13 @@ SUNSHINE_DEFAULTS = {
     "log": "~/.config/sunshine/sunshine.log",
     "policy": "~/.config/hwdash/sunshine-policy.json",
     "pin": "~/.config/hwdash/pin",
+    "service_token": "~/.config/hwdash/service.token",  # lets a local program make changes without the PIN; optional
     "warn_minutes": [10, 2],  # notifications before the time runs out
     "close_after_disconnect_minutes": 5,  # close a managed device's app left running after "Disconnect"
     "game_close_grace_minutes": 5,  # after the stream is ended: time to add minutes before the game is closed
     "game_process": r"^\S*reaper SteamLaunch AppId=(\d+)",  # regex on the cmdline; empty = never close games
     "notify": ["notify-send", "-u", "critical", "-a", "Moonlight", "Moonlight", "{message}"],
+    "notify_seconds": 15,  # remove the notification after this long (0 = leave it); default "notify" only
     "tick": 5,  # seconds between checks
     "lang": "en",  # language of the on-screen notifications: en | ru
 }
@@ -53,6 +56,23 @@ MESSAGES = {
     "en": {"left": "{n} min of streaming left", "up": "Streaming time is up"},
     "ru": {"left": "Осталось {n} мин стрима", "up": "Время стрима вышло"},
 }
+# GNOME keeps critical notifications until closed and honours CloseNotification only from the
+# D-Bus connection that created them, so one process has to show and close (notify-send cannot).
+NOTIFY_HELPER = """
+import sys, time
+try:
+    from gi.repository import Gio, GLib
+except ImportError:
+    sys.exit(3)
+name, path = "org.freedesktop.Notifications", "/org/freedesktop/Notifications"
+bus = Gio.bus_get_sync(Gio.BusType.SESSION, None)
+def call(method, args, reply):
+    return bus.call_sync(name, path, name, method, args, reply, 0, 5000, None)
+nid = call("Notify", GLib.Variant("(susssasa{sv}i)", ("Moonlight", 0, "", "Moonlight", sys.argv[1], [],
+          {"urgency": GLib.Variant("y", 2)}, -1)), GLib.VariantType("(u)")).unpack()[0]
+time.sleep(float(sys.argv[2]))
+call("CloseNotification", GLib.Variant("(u)", (nid,)), None)
+"""
 MODES = ("unmanaged", "always", "schedule", "blocked")
 TOKEN_TTL = 15 * 60
 LAUNCH_GRACE = 60  # a launch with no running app after this long is treated as ended
@@ -458,6 +478,7 @@ class StreamManager:
         self.game_close_path = self.policy_path.with_name("sunshine-game-close.json")
         self.game_close = self._load_game_close()  # survives a restart of hwdash
         self.pin_path = Path(cfg["pin"]).expanduser()
+        self.service_token_path = Path(cfg["service_token"]).expanduser()
         self.tail = LogTail(Path(cfg["log"]).expanduser())
         self.lock = threading.RLock()
         self.policies = self._load_policies()
@@ -676,11 +697,19 @@ class StreamManager:
 
     def notify(self, key, **kw):
         message = MESSAGES.get(self.cfg["lang"], MESSAGES["en"])[key].format(**kw)
-        cmd = [part.replace("{message}", message) for part in self.cfg["notify"]]
+        threading.Thread(target=self._show_notification, args=(message,), daemon=True).start()
+
+    def _show_notification(self, message):
+        seconds = self.cfg["notify_seconds"]
         try:
+            if seconds and self.cfg["notify"] == SUNSHINE_DEFAULTS["notify"]:
+                helper = [sys.executable, "-c", NOTIFY_HELPER, message, str(seconds)]
+                if subprocess.run(helper, timeout=seconds + 15, capture_output=True).returncode == 0:
+                    return
+            cmd = [part.replace("{message}", message) for part in self.cfg["notify"]]
             subprocess.run(cmd, timeout=5, capture_output=True)
         except (OSError, subprocess.SubprocessError):
-            log.warning("notification failed: %s", cmd[0])
+            log.warning("notification failed: %s", message)
 
     # -- API ------------------------------------------------------------------
 
@@ -731,7 +760,12 @@ class StreamManager:
             return None, max(0, int(self.locked_until - now))
 
     def authorized(self, token):
-        return bool(token) and self.tokens.get(token, 0) > time.time()
+        if not token:
+            return False
+        service = (read_or_none(self.service_token_path) or "").strip()
+        if service and hmac.compare_digest(service.encode(), token.encode()):
+            return True
+        return self.tokens.get(token, 0) > time.time()
 
     def set_policy(self, uuid, policy):
         with self.lock:

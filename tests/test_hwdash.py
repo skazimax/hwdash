@@ -1,7 +1,13 @@
+import json
 import sys
 import tempfile
+import threading
 import unittest
+import urllib.error
+import urllib.request
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from types import SimpleNamespace
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import hwdash  # noqa: E402
@@ -88,6 +94,92 @@ class DemoTest(unittest.TestCase):
         self.assertEqual(c.meta["t:nct6798/CPUTIN"]["title"], "CPU VRM")
         self.assertEqual(c.meta["t:spd5118/temp1#2"]["title"], "Memory DIMM #2")
         self.assertTrue(c.meta["f:nct6798/fan3"]["hidden"])
+
+
+class EmbedConfigTest(unittest.TestCase):
+    def good(self, **changes):
+        return {"id": "app", "title": "App", "upstream": "http://127.0.0.1:9000/", **changes}
+
+    def test_upstream_is_normalized(self):
+        self.assertEqual(hwdash.clean_embeds([self.good()], "c")[0]["upstream"], "http://127.0.0.1:9000")
+
+    def test_bad_entries_stop_startup(self):
+        for bad in (self.good(id="net"), self.good(id="A B"), self.good(title=""), self.good(upstream="file:///x"), self.good(extra=1)):
+            with self.assertRaises(SystemExit):
+                hwdash.clean_embeds([bad], "c")
+        with self.assertRaises(SystemExit):
+            hwdash.clean_embeds([self.good(), self.good()], "c")
+
+
+class EmbedProxyTest(unittest.TestCase):
+    def setUp(self):
+        seen = self.seen = []
+
+        class Upstream(BaseHTTPRequestHandler):
+            def log_message(self, *args):
+                pass
+
+            def reply(self):
+                body = self.rfile.read(int(self.headers.get("Content-Length") or 0))
+                seen.append((self.command, self.path, dict(self.headers), body))
+                code = 409 if self.path.startswith("/refused") else 200
+                data = json.dumps({"ok": True}).encode()
+                self.send_response(code)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Content-Length", str(len(data)))
+                self.send_header("Set-Cookie", "s=1; Path=/; HttpOnly")
+                self.end_headers()
+                self.wfile.write(data)
+
+            do_GET = do_POST = reply
+
+        self.upstream = ThreadingHTTPServer(("127.0.0.1", 0), Upstream)
+        threading.Thread(target=self.upstream.serve_forever, daemon=True).start()
+        port = self.upstream.server_address[1]
+        embeds = [{"id": "app", "title": "App", "upstream": f"http://127.0.0.1:{port}"},
+                  {"id": "down", "title": "Down", "upstream": "http://127.0.0.1:9"}]
+        handler = hwdash.make_handler(SimpleNamespace(meta={}, info={}), None, None, {"now": {}}, 5, embeds=embeds)
+        self.server = ThreadingHTTPServer(("127.0.0.1", 0), handler)
+        threading.Thread(target=self.server.serve_forever, daemon=True).start()
+        self.base = f"http://127.0.0.1:{self.server.server_address[1]}"
+        self.opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+
+    def tearDown(self):
+        for server in (self.server, self.upstream):
+            server.shutdown()
+            server.server_close()
+
+    def call(self, path, data=None, headers=None):
+        try:
+            with self.opener.open(urllib.request.Request(self.base + path, data=data, headers=headers or {}), timeout=5) as r:
+                return r.status, r.read(), r.headers
+        except urllib.error.HTTPError as e:
+            return e.code, e.read(), e.headers
+
+    def test_get_keeps_path_and_query_and_forwards_only_the_cookie(self):
+        status, _, headers = self.call("/embed/app/api/x?a=1", headers={"Cookie": "s=1", "Authorization": "Bearer secret"})
+        self.assertEqual(status, 200)
+        method, path, sent, _ = self.seen[0]
+        self.assertEqual((method, path, sent["Cookie"]), ("GET", "/api/x?a=1", "s=1"))
+        self.assertNotIn("Authorization", sent)
+        self.assertIn("HttpOnly", headers["Set-Cookie"])
+
+    def test_post_passes_body_and_error_status(self):
+        status, body, _ = self.call("/embed/app/refused", b'{"a":1}', {"Content-Type": "application/json"})
+        self.assertEqual(status, 409)
+        self.assertEqual(json.loads(body), {"ok": True})
+        self.assertEqual(self.seen[0][3], b'{"a":1}')
+
+    def test_unknown_embed_and_missing_slash_are_not_found(self):
+        self.assertEqual(self.call("/embed/other/")[0], 404)
+        self.assertEqual(self.call("/embed/app")[0], 404)
+
+    def test_unavailable_upstream(self):
+        self.assertEqual(self.call("/embed/down/")[0], 502)
+
+    def test_tabs_are_listed(self):
+        info = json.loads(self.call("/api/now")[1])["info"]
+        self.assertEqual(info["embeds"][0], {"id": "app", "title": "App"})
 
 
 if __name__ == "__main__":

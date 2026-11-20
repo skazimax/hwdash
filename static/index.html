@@ -119,6 +119,7 @@ dialog::backdrop { background: rgba(0, 0, 0, .6); }
 .tabs .live { width: 7px; height: 7px; border-radius: 50%; background: var(--ok); }
 .page { display: flex; flex-direction: column; gap: 28px; }
 .page[hidden], .tools > span[hidden] { display: none; }
+#embed-frame { width: 100%; height: calc(100vh - 110px); min-height: 520px; border: 1px solid var(--line); border-radius: 12px; }
 .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 16px; }
 .card.session { background: #1a1e26; border-color: #2f3644; padding: 20px 22px; display: flex; flex-direction: column; gap: 12px; }
 .session .who { display: flex; align-items: center; gap: 10px; font-size: 16px; font-weight: 600; }
@@ -232,6 +233,20 @@ dialog::backdrop { background: rgba(0, 0, 0, .6); }
 .net-link.st-idle .wire, .net-link.st-unknown .wire { stroke-dasharray: 2 7; stroke-linecap: round; }
 .net-stale .net-node .dot, .net-stale .net-link .wire { opacity: .45; }
 .net-stale .net-node rect { stroke: var(--faint); }
+.exit-table { border: 1px solid var(--line); border-radius: 12px; overflow-x: auto; }
+.exit-row { display: grid; grid-template-columns: 170px 220px 190px minmax(130px, 1fr) 90px 110px; gap: 8px; padding: 10px 16px; font-size: 14px;
+  min-width: 940px; border-top: 1px solid var(--line); color: var(--text); font-variant-numeric: tabular-nums; }
+.exit-row:first-child { border-top: 0; }
+.exit-row.head { font-size: 12px; color: var(--muted); }
+.exit-row .st { font-weight: 600; }
+.exit-row.st-up .st { color: var(--ok); } .exit-row.st-degraded .st { color: var(--warm); }
+.exit-row.st-down .st { color: var(--hot); } .exit-row.st-unknown .st { color: var(--faint); }
+.exit-row .bad { color: var(--warm); font-weight: 600; }
+.exit-row.st-down .bad { color: var(--hot); }
+.exit-group { padding: 8px 16px; font-size: 12px; font-weight: 600; letter-spacing: .04em; color: var(--muted); background: var(--card); border-top: 1px solid var(--line); min-width: 940px; }
+.exit-row .geo { color: var(--muted); }
+.exit-row .act { color: var(--ok); font-size: 12px; }
+.exit-row .usual { display: block; color: var(--muted); font-size: 11px; font-weight: 400; }
 .net-panel { padding: 14px 16px; min-width: 0; }
 .net-panel h3 { margin: 0 0 6px; font-size: 15px; color: var(--text); overflow-wrap: anywhere; }
 .net-panel .state { font-size: 13px; font-weight: 600; }
@@ -265,6 +280,7 @@ dialog::backdrop { background: rgba(0, 0, 0, .6); }
   <div class="note" id="note"></div>
   </div>
   <div class="page" id="page-stream" hidden></div>
+  <div class="page" id="page-embed" hidden><iframe id="embed-frame" title=""></iframe></div>
   <div class="page" id="page-net" hidden></div>
 </div>
 
@@ -1158,6 +1174,7 @@ Object.assign(I18N.en, {
   n_pick: "Select a node or a link to see details.", n_link: "Link to {p}", n_type: "Link", n_group: "Group", n_address: "Address",
   n_rtt: "RTT min / avg / max", n_loss: "Loss", n_since: "State since", n_last: "Last reply", n_target: "Checked by", n_ping: "ping {t}",
   n_noprobe: "Not checked: no address to ping.", n_blocked: "Unknown: the node it is reached through is down.",
+  n_r_lag: "high lag", n_r_speed: "low speed", n_r_drop: "speed dropped", n_usual: "usually {v}", n_r_no_answer: "no answer", n_lag: "Lag", n_speed: "Speed", n_geo: "Exit", n_vpn: "VPN", n_purpose: "Purpose", n_exits: "Internet exits", n_backup: "backup", n_active: "active", n_on_backup: "on backup",
   n_ms: "ms", n_cpu: "Router CPU", n_mem: "Router memory", n_up_t: "Router uptime",
   n_hs: "Last handshake", n_ago: "{s} s ago", n_session: "Session", n_nosession: "no session", n_from: "From the node", n_to: "To the node",
   n_src: "Link state comes from the router; node state from ping.", n_mbit: "Mbit/s", n_d: "d", n_h: "h", n_m: "min",
@@ -1169,22 +1186,23 @@ Object.assign(I18N.ru, {
   n_pick: "Выберите узел или линк, чтобы увидеть детали.", n_link: "Линк до узла {p}", n_type: "Линк", n_group: "Группа", n_address: "Адрес",
   n_rtt: "RTT мин / сред / макс", n_loss: "Потери", n_since: "Состояние с", n_last: "Последний ответ", n_target: "Проверка", n_ping: "ping {t}",
   n_noprobe: "Не проверяется: нет адреса для пинга.", n_blocked: "Неизвестно: узел, через который он доступен, не работает.",
+  n_r_lag: "высокий лаг", n_r_speed: "низкая скорость", n_r_drop: "скорость упала", n_usual: "обычно {v}", n_r_no_answer: "нет ответа", n_lag: "Лаг", n_speed: "Скорость", n_geo: "Выход", n_vpn: "VPN", n_purpose: "Назначение", n_exits: "Выходы в интернет", n_backup: "резерв", n_active: "активен", n_on_backup: "на резерве",
   n_ms: "мс", n_cpu: "CPU роутера", n_mem: "Память роутера", n_up_t: "Роутер работает",
   n_hs: "Последний handshake", n_ago: "{s} с назад", n_session: "Сессия", n_nosession: "нет сессии", n_from: "От узла", n_to: "К узлу",
   n_src: "Цвет линка показывает состояние туннеля на роутере, цвет узла — пинг.", n_mbit: "Мбит/с", n_d: "д", n_h: "ч", n_m: "мин",
 });
 const NET_GLYPH = { up: "✓", degraded: "!", down: "×", idle: "–", unknown: "?" };
 const NET_DASH = { up: "", degraded: "10 5", down: "3 6", idle: "2 7", unknown: "2 7" };
-const NET_W = 1000, NET_H = 600, NODE_W = 216, NODE_H = 78;
+const NET_W = 1000, NET_H = 600, NET_CY = 300, NODE_W = 216, NODE_H = 78;
 let net = null, netAt = 0, netSel = null, netShape = "";
 
 function netPositions(nodes) {
   // The root sits in the centre, the rest on a ring in config order, clockwise from the top.
   const others = nodes.filter((n) => n.parent), pos = {};
-  pos[nodes.find((n) => !n.parent).id] = [NET_W / 2, NET_H / 2];
+  pos[nodes.find((n) => !n.parent).id] = [NET_W / 2, NET_CY];
   others.forEach((n, i) => {
     const a = -Math.PI / 2 + (2 * Math.PI * i) / others.length;
-    pos[n.id] = [NET_W / 2 + 385 * Math.cos(a), NET_H / 2 + 225 * Math.sin(a)];
+    pos[n.id] = [NET_W / 2 + 385 * Math.cos(a), NET_CY + 225 * Math.sin(a)];
   });
   return pos;
 }
@@ -1210,7 +1228,7 @@ function netBuild() {
     `<span class="st-${s}"><svg viewBox="0 0 34 10" aria-hidden="true"><line x1="0" y1="5" x2="34" y2="5" stroke="currentColor" stroke-width="2.5" stroke-dasharray="${NET_DASH[s]}"/></svg><span style="color:var(--muted)">${NET_GLYPH[s]} ${t("n_" + s)}</span></span>`).join("");
   $("page-net").innerHTML = `<p class="net-note">${esc(t("n_note"))}</p><div class="notice" id="net-notice" hidden></div>
     <div class="net-layout"><div class="net-canvas"><svg id="net-map" viewBox="0 0 ${NET_W} ${NET_H}" role="group" aria-label="${esc(t("tab_net"))}">${links}${boxes}</svg></div>
-    <div class="card net-panel" id="net-panel" aria-live="polite"></div></div><div class="net-legend">${legend}</div>`;
+    <div class="card net-panel" id="net-panel" aria-live="polite"></div></div><div class="net-legend">${legend}</div><section id="net-exits"></section>`;
   const canvas = $("net-map").parentElement;
   canvas.scrollLeft = (canvas.scrollWidth - canvas.clientWidth) / 2;  // phones: start on the hub
   const pick = (e) => {
@@ -1219,6 +1237,30 @@ function netBuild() {
   };
   $("net-map").addEventListener("click", pick);
   $("net-map").addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); pick(e); } });
+}
+
+function netExits() {
+  const box = $("net-exits");
+  const exits = net.exits || [];
+  box.hidden = !exits.length;
+  if (!exits.length) return;
+  // Grouped by place in config order, so a row stays where it is when its state changes.
+  const groups = new Map();
+  for (const e of exits) groups.set(e.at, [...(groups.get(e.at) || []), e]);
+  const place = (at) => net.nodes.find((n) => n.id === at)?.title || at;
+  const row = (e) => {
+    const geo = e.geo ? [e.geo.city, e.geo.country].filter(Boolean).join(", ") : "—";
+    const bad = (flag) => flag ? " class=\"bad\"" : "";
+    const onBackup = e.backup && e.active === true;
+    const status = onBackup ? `! ${t("n_on_backup")}` : `${NET_GLYPH[e.state]} ${e.reason ? t("n_r_" + e.reason) : t("n_" + e.state)}`;
+    const name = `${esc(e.title)}${e.backup ? ` · ${esc(t("n_backup"))}` : ""}${e.active === true ? ` <span class="act">● ${esc(t("n_active"))}</span>` : ""}`;
+    return `<div class="exit-row st-${onBackup ? "degraded" : e.state}"><span class="st">${esc(status)}</span>
+      <span>${name}</span><span class="geo">${esc(e.purpose || "—")}</span><span class="geo">${esc(geo)}</span>
+      <span${bad(e.lag_bad)}>${e.lag_ms != null ? `${e.lag_ms} ${t("n_ms")}` : "—"}</span>
+      <span${bad(e.speed_bad || e.reason === "drop")}>${e.speed_mbit != null ? `${e.speed_mbit.toFixed(1)} ${t("n_mbit")}` : "—"}${e.speed_usual != null && e.speed_mbit != null ? `<span class="usual">${esc(t("n_usual", { v: Math.round(e.speed_usual) }))}</span>` : ""}</span></div>`;
+  };
+  const body = [...groups].map(([at, list]) => `<div class="exit-group">${esc(place(at))}</div>${list.map(row).join("")}`).join("");
+  box.innerHTML = `<h2>${esc(t("n_exits"))}</h2><div class="exit-table"><div class="exit-row head"><span>${esc(t("h_status"))}</span><span>${esc(t("n_vpn"))}</span><span>${esc(t("n_purpose"))}</span><span>${esc(t("n_geo"))}</span><span>${esc(t("n_lag"))}</span><span>${esc(t("n_speed"))}</span></div>${body}</div>`;
 }
 
 function netPanel() {
@@ -1262,7 +1304,7 @@ function netPaint() {
   // Stale when the server stopped checking, or when this page stopped reaching the server.
   const limit = (net?.interval || 15) * 3;
   const stale = !net || !net.ts || net.now - net.ts > limit || Date.now() - netAt > limit * 1000;
-  const down = net?.nodes.some((n) => n.state === "down" || n.link_state === "down");
+  const down = net?.nodes.some((n) => n.state === "down" || n.link_state === "down") || net?.exits?.some((e) => e.state === "down");
   $("tabs").querySelector('[data-tab="net"]').innerHTML = `${t("tab_net")}${down ? '<i class="alarm"></i>' : ""}`;
   if (tab !== "net" || !net) return;
   const shape = JSON.stringify(net.nodes.map((n) => [n.id, n.parent, n.title, n.subtitle, n.group, n.link]));
@@ -1285,6 +1327,7 @@ function netPaint() {
   const msg = !net.ts ? t("n_wait") : stale ? t("n_stale", { t: new Date(netAt).toLocaleTimeString(LANG) }) : "";
   notice.hidden = !msg;
   notice.textContent = msg;
+  netExits();
   netPanel();
 }
 
@@ -1303,21 +1346,33 @@ function setTab(name) {
   $("page-mon").hidden = name !== "mon";
   $("page-stream").hidden = name !== "stream";
   $("page-net").hidden = name !== "net";
+  const embed = (now?.info?.embeds || []).find((e) => e.id === name);
+  $("page-embed").hidden = !embed;
+  if (embed && $("embed-frame").dataset.id !== embed.id) {
+    $("embed-frame").dataset.id = embed.id;
+    $("embed-frame").title = embed.title;
+    $("embed-frame").src = `embed/${embed.id}/`;
+  }
   $("mon-tools").hidden = name !== "mon";
   $("tabs").querySelectorAll("button").forEach((b) => b.setAttribute("aria-selected", b.dataset.tab === name));
   history.replaceState(null, "", name === "mon" ? location.pathname + location.search : `#${name}`);
-  if (name === "stream") loadStream(); else if (name === "net") loadNet(); else render();
+  if (name === "stream") loadStream(); else if (name === "net") loadNet(); else if (name === "mon") render();
 }
 $("tabs").addEventListener("click", (e) => { const b = e.target.closest("button"); if (b) setTab(b.dataset.tab); });
 
 function onNowLoaded() {
-  if ((!now.info.stream && !now.info.topology) || !$("tabs").hidden) return;
+  if ((!now.info.stream && !now.info.topology && !now.info.embeds.length) || !$("tabs").hidden) return;
   $("tabs").hidden = false;
   $("tabs").querySelector('[data-tab="mon"]').textContent = t("tab_mon");
   $("tabs").querySelector('[data-tab="stream"]').hidden = !now.info.stream;
   $("tabs").querySelector('[data-tab="net"]').hidden = !now.info.topology;
+  for (const e of now.info.embeds) {
+    const b = document.createElement("button");
+    b.dataset.tab = e.id; b.textContent = e.title; b.setAttribute("aria-selected", "false");
+    $("tabs").append(b);
+  }
   const wanted = location.hash.slice(1);
-  setTab((wanted === "stream" && now.info.stream) || (wanted === "net" && now.info.topology) ? wanted : "mon");
+  setTab((wanted === "stream" && now.info.stream) || (wanted === "net" && now.info.topology) || now.info.embeds.some((e) => e.id === wanted) ? wanted : "mon");
   if (now.info.stream && tab !== "stream") loadStream();
   if (now.info.topology && tab !== "net") loadNet();
 }

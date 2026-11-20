@@ -32,7 +32,9 @@ About 35 MB of RAM and well under 1 % of one CPU core.
   access schedules with daily limits — see [below](#moonlight--sunshine-sessions-and-access-schedules).
 - **Network map** (optional): a **Network** tab with your VPN nodes and links. Node colour is
   a ping from this machine; link colour can come from the tunnel state on a Keenetic/Netcraze
-  router — see the `[topology]` section of `config.example.toml`.
+  router. Public VPN exits are listed in a table with lag, speed and location — see the
+  `[topology]` section of `config.example.toml`.
+- **Embedded pages** (optional): show another local web app as a tab — see `[[embeds]]` in `config.example.toml`.
 - English and Russian UI (by browser language, or `?lang=en|ru`).
 - Works on a phone.
 

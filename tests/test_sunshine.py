@@ -7,6 +7,7 @@ import sys
 import tempfile
 import time
 import unittest
+import unittest.mock
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
@@ -204,6 +205,23 @@ class ManagerTest(unittest.TestCase):
         self.assertEqual(self.mgr.game_procs.running(), [])
         with self.assertRaises(ValueError):
             self.mgr.apply_action("", "close_game")
+
+    def show(self, returncode):
+        self.mgr.cfg.update(notify=sunshine.SUNSHINE_DEFAULTS["notify"], notify_seconds=15)
+        with unittest.mock.patch("sunshine.subprocess.run") as run:
+            run.return_value.returncode = returncode
+            self.mgr._show_notification("hello")
+        return [c[0][0] for c in run.call_args_list]
+
+    def test_notification_goes_through_the_closing_helper(self):
+        calls = self.show(0)
+        self.assertEqual(len(calls), 1)
+        self.assertEqual(calls[0][1:2] + calls[0][3:], ["-c", "hello", "15"])
+
+    def test_notification_falls_back_without_gi(self):
+        calls = self.show(3)
+        self.assertEqual(calls[1][0], "notify-send")
+        self.assertIn("hello", calls[1])
 
     def test_login_lockout(self):
         for _ in range(5):

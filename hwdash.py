@@ -9,6 +9,7 @@ API:
   GET /api/now                 current values + sensor metadata
   GET /api/history?range=24h   bucketed history (1h|6h|24h|48h|7d) + baselines
   GET /api/config              tile settings made in the UI (hidden / large / names)
+  GET|POST /embed/<id>/...     another local web app shown as a tab ([[embeds]] in the config)
   PUT /api/config              save tile settings
 
 With [sunshine] enabled (see sunshine.py) also:
@@ -37,15 +38,22 @@ import time
 import tomllib
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from urllib.error import HTTPError, URLError
 from urllib.parse import parse_qs, urlparse
+from urllib.request import ProxyHandler, Request, build_opener
 
 import sunshine
 import topology
 
-__version__ = "1.3.0"
+__version__ = "1.4.0"
 
 STATIC = Path(__file__).resolve().parent / "static"
 DEFAULT_CONFIG = Path.home() / ".config/hwdash/config.toml"
+EMBED_ID = re.compile(r"[a-z0-9_-]+")
+EMBED_PATH = re.compile(r"/embed/([a-z0-9_-]+)(/.*)")
+EMBED_RESERVED = ("mon", "stream", "net")
+EMBED_MAX_BODY = 65536
+EMBED_TIMEOUT = 45  # an embedded app may wait on a slow device
 SERVER_DEFAULTS = {
     "bind": "0.0.0.0",
     "port": 8090,
@@ -100,10 +108,27 @@ def read_text(path):
         return None
 
 
+def clean_embeds(items, path):
+    """Validates [[embeds]]: another local web app shown as a tab, reached through this server."""
+    embeds, seen = [], set(EMBED_RESERVED)
+    for item in items:
+        bad = set(item) - {"id", "title", "upstream"}
+        if bad:
+            raise SystemExit(f"{path}: [[embeds]] unknown fields: {', '.join(sorted(bad))}")
+        ident, title, upstream = item.get("id", ""), item.get("title", ""), item.get("upstream", "")
+        if not (isinstance(ident, str) and EMBED_ID.fullmatch(ident)) or ident in seen:
+            raise SystemExit(f"{path}: [[embeds]] id must be unique, a-z 0-9 _ -, and not one of the built-in tabs: {ident!r}")
+        if not (isinstance(title, str) and title and isinstance(upstream, str) and upstream.startswith(("http://", "https://"))):
+            raise SystemExit(f"{path}: [[embeds]] {ident}: needs a title and an http(s) upstream")
+        seen.add(ident)
+        embeds.append({"id": ident, "title": title, "upstream": upstream.rstrip("/")})
+    return embeds
+
+
 def load_settings(path):
-    """Settings from config.toml: [server], [sunshine], [topology] and [sensors."<key>"] overrides."""
+    """Settings from config.toml: [server], [sunshine], [topology], [[embeds]] and [sensors."<key>"] overrides."""
     settings = {"server": dict(SERVER_DEFAULTS), "sunshine": dict(sunshine.SUNSHINE_DEFAULTS),
-                "topology": dict(topology.TOPOLOGY_DEFAULTS), "sensors": {}}
+                "topology": dict(topology.TOPOLOGY_DEFAULTS), "sensors": {}, "embeds": []}
     if path is None:
         return settings
     with open(path, "rb") as f:
@@ -123,6 +148,7 @@ def load_settings(path):
     settings["sunshine"].update(stream)
     settings["topology"].update(net)
     settings["sensors"] = sensors
+    settings["embeds"] = clean_embeds(data.get("embeds", []), path)
     return settings
 
 
@@ -543,8 +569,10 @@ def collector_loop(collector, store, state, step, retention_h):
             log.exception("collector loop failed")
 
 
-def make_handler(collector, store, ui_config, state, step, stream=None, net=None):
+def make_handler(collector, store, ui_config, state, step, stream=None, net=None, embeds=()):
     index = STATIC / "index.html"
+    embed_upstreams = {e["id"]: e["upstream"] for e in embeds}
+    embed_opener = build_opener(ProxyHandler({}))
 
     class Handler(BaseHTTPRequestHandler):
         server_version = f"hwdash/{__version__}"
@@ -569,15 +597,53 @@ def make_handler(collector, store, ui_config, state, step, stream=None, net=None
                 raise ValueError("body is empty or too large")
             return json.loads(self.rfile.read(length))  # JSONDecodeError is a ValueError
 
+        def proxy_embed(self, url):
+            """Serves /embed/<id>/... from its upstream: same origin, and works behind one published address.
+
+            Only the cookie and content type are forwarded. The embedded app must do its own authentication.
+            """
+            match = EMBED_PATH.fullmatch(url.path)
+            upstream = embed_upstreams.get(match[1]) if match else None
+            if not upstream:
+                return False
+            length = int(self.headers.get("Content-Length") or 0)
+            if length > EMBED_MAX_BODY:
+                self.send_body(413, b"too large", "text/plain")
+                return True
+            data = self.rfile.read(length) if self.command == "POST" else None
+            headers = {k: self.headers[k] for k in ("Cookie", "Content-Type") if self.headers.get(k)}
+            target = upstream + match[2] + (f"?{url.query}" if url.query else "")
+            try:
+                reply = embed_opener.open(Request(target, data=data, headers=headers, method=self.command), timeout=EMBED_TIMEOUT)
+            except HTTPError as err:
+                reply = err
+            except (URLError, OSError):
+                self.send_body(502, b"embedded page is unavailable", "text/plain")
+                return True
+            with reply:
+                body = reply.read()
+                self.send_response(reply.status if hasattr(reply, "status") and reply.status else reply.code)
+                self.send_header("Content-Type", reply.headers.get("Content-Type", "application/octet-stream"))
+                self.send_header("Content-Length", str(len(body)))
+                self.send_header("Cache-Control", reply.headers.get("Cache-Control", "no-store"))
+                for cookie in reply.headers.get_all("Set-Cookie") or []:
+                    self.send_header("Set-Cookie", cookie)
+                self.end_headers()
+                self.wfile.write(body)
+            return True
+
         def do_GET(self):
             url = urlparse(self.path)
+            if url.path.startswith("/embed/") and self.proxy_embed(url):
+                return
             if url.path in ("/", "/index.html"):
                 self.send_body(200, index.read_bytes(), "text/html; charset=utf-8")
             elif url.path == "/api/now":
                 uptime = float((read_text("/proc/uptime") or "0").split()[0])
                 self.send_json({**state.get("now", {}), "meta": collector.meta,
                                 "info": {**collector.info, "uptime": int(uptime), "step": step,
-                                         "stream": stream is not None, "topology": net is not None}})
+                                         "stream": stream is not None, "topology": net is not None,
+                                         "embeds": [{"id": e["id"], "title": e["title"]} for e in embeds]}})
             elif url.path == "/api/stream" and stream:
                 self.send_json(stream.snapshot(self.headers.get("X-Hwdash-Token")))
             elif url.path == "/api/topology" and net:
@@ -610,7 +676,10 @@ def make_handler(collector, store, ui_config, state, step, stream=None, net=None
             self.send_json(cfg)
 
         def do_POST(self):
-            path = urlparse(self.path).path
+            url = urlparse(self.path)
+            if url.path.startswith("/embed/") and self.proxy_embed(url):
+                return
+            path = url.path
             if path == "/api/stream/login" and stream:
                 try:
                     pin = str(self.read_json().get("pin", ""))
@@ -714,7 +783,7 @@ def main():
     if stream:
         stream.start()
     httpd = ThreadingHTTPServer((server["bind"], server["port"]),
-                                make_handler(collector, store, ui_config, state, step, stream, net))
+                                make_handler(collector, store, ui_config, state, step, stream, net, settings["embeds"]))
     log.info("hwdash %s on http://%s:%d%s, config %s", __version__, server["bind"], server["port"],
              " (demo)" if args.demo else "", config or "none")
     try:

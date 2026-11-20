@@ -189,5 +189,194 @@ class RouterReadTest(unittest.TestCase):
         self.assertEqual(mon.apis, {})
 
 
+class ExitTest(unittest.TestCase):
+    EX = {"id": "a", "title": "A", "check": "https://example.com/", "speed": "https://example.com/big", "at": "x"}
+
+    def monitor(self, curl, **extra):
+        return topology.TopologyMonitor({"nodes": [{"id": "x"}], "exits": [{**self.EX, **extra}], "speed_interval": 3600}, probe=lambda t, c: UP, apis={}, curl=curl)
+
+    def status(self, mon):
+        return mon.snapshot()["exits"][0]
+
+    def test_ok(self):
+        mon = self.monitor(lambda ex, url, s, write="x": "200 0.2 2500000 5000000")
+        mon.check_exits()
+        st = self.status(mon)
+        self.assertEqual((st["state"], st["reason"], st["lag_ms"], st["speed_mbit"]), ("up", "", 200, 20.0))
+
+    def test_private_fields_are_not_exposed(self):
+        mon = self.monitor(lambda ex, url, s, write="x": "200 0.2 2500000 5000000", proxy="socks5h://127.0.0.1:1", ssh="myhost")
+        self.assertFalse({"proxy", "ssh", "check", "speed", "fails", "speeds"} & set(self.status(mon)))
+
+    def test_slow_answer_is_lag(self):
+        mon = self.monitor(lambda ex, url, s, write="x": "200 2.0 2500000 5000000", lag_warn_ms=1000)
+        mon.check_exits()
+        self.assertEqual((self.status(mon)["state"], self.status(mon)["reason"]), ("degraded", "lag"))
+
+    def test_low_speed_and_no_data(self):
+        for reply in ("200 0.2 10000 5000000", "200 0.2 0 0"):
+            mon = self.monitor(lambda ex, url, s, write="x": reply)
+            mon.check_exits()
+            self.assertEqual(self.status(mon)["reason"], "speed", reply)
+
+    def test_speed_drop_against_usual(self):
+        ex = topology.clean_exits([{**self.EX, "speed_warn_mbit": 1}])[0]
+        st = {"fails": 0, "lag_ms": 100, "speed_mbit": 20.0, "speeds": [50.0] * 6 + [20.0]}
+        self.assertEqual(topology.exit_state(ex, st), ("degraded", "drop"))
+        self.assertEqual(topology.exit_state(ex, {**st, "speed_mbit": 45.0, "speeds": [50.0] * 6 + [45.0]}), ("up", ""))
+        self.assertEqual(topology.exit_state(ex, {**st, "speed_mbit": 0.5, "speeds": [50.0] * 6 + [0.5]}), ("degraded", "speed"))
+
+    def test_down_only_after_repeated_failure(self):
+        mon = self.monitor(lambda ex, url, s, write="x": "000 0 0 0")
+        mon.check_exits()
+        self.assertEqual(self.status(mon)["state"], "degraded")
+        mon.check_exits()
+        self.assertEqual((self.status(mon)["state"], self.status(mon)["reason"]), ("down", "no_answer"))
+
+    def test_speed_sample_is_not_repeated_until_due(self):
+        calls = []
+        def curl(ex, url, s, write="x"):
+            calls.append(url)
+            return "200 0.1 1000000 1000"
+        mon = self.monitor(curl)
+        mon.check_exits()
+        mon.check_exits()
+        self.assertEqual(calls.count("https://example.com/big"), 1)
+
+    def test_stopped_checks_show_as_unknown(self):
+        mon = self.monitor(lambda ex, url, s, write="x": "200 0.2 2500000 5000000")
+        mon.check_exits()
+        self.assertEqual(self.status(mon)["state"], "up")
+        mon.exit_status["a"]["checked"] -= 10000
+        self.assertEqual((self.status(mon)["state"], self.status(mon)["reason"]), ("unknown", ""))
+
+    def test_every_bad_value_is_flagged_not_only_the_reason(self):
+        mon = self.monitor(lambda ex, url, s, write="x": "200 3.0 10000 5000000", lag_warn_ms=1000)
+        mon.check_exits()
+        st = self.status(mon)
+        self.assertEqual((st["reason"], st["lag_bad"], st["speed_bad"]), ("lag", True, True))
+
+    def test_routed_exit_has_no_location(self):
+        urls = []
+        def curl(ex, url, s, write="x"):
+            urls.append(url)
+            return "200 0.1 1000000 1000"
+        mon = self.monitor(curl)
+        mon.check_exits()
+        self.assertNotIn("https://ipinfo.io/json", urls)
+        self.assertIsNone(self.status(mon)["geo"])
+
+    def test_probe_sends_only_the_kind_of_measurement(self):
+        ex = topology.clean_exits([{**self.EX, "ssh": "router", "probe": "my-probe"}])[0]
+        seen = []
+        real = topology.subprocess.run
+        def fake(args, **kw):
+            seen.append(args[-1])
+            return topology.subprocess.CompletedProcess(args, 0, "200 0.1 1 1", "")
+        topology.subprocess.run = fake
+        try:
+            topology.exit_curl(ex, ex["check"], 5)
+            topology.exit_curl(ex, ex["speed"], 5)
+            topology.exit_curl(ex, "https://ipinfo.io/json", 5, write="")
+        finally:
+            topology.subprocess.run = real
+        self.assertEqual(seen, ["my-probe check", "my-probe speed", "my-probe geo"])
+
+    def test_speed_samples_do_not_overlap(self):
+        import threading
+        import time as t
+        running, peak, lock = [0], [0], threading.Lock()
+        def curl(ex, url, s, write="x"):
+            if url.endswith("/big"):
+                with lock:
+                    running[0] += 1
+                    peak[0] = max(peak[0], running[0])
+                t.sleep(0.02)
+                with lock:
+                    running[0] -= 1
+            return "200 0.1 1000000 1000"
+        exits = [{**self.EX, "id": f"e{i}"} for i in range(4)]
+        mon = topology.TopologyMonitor({"nodes": [{"id": "x"}], "exits": exits}, probe=lambda t, c: UP, apis={}, curl=curl)
+        mon.check_exits()
+        self.assertEqual(peak[0], 1)
+
+    def test_speed_adds_up_streams_and_uses_a_byte_range(self):
+        ex = topology.clean_exits([{**self.EX, "speed_streams": 4, "speed_bytes": 1000}])[0]
+        mon = topology.TopologyMonitor({"nodes": [{"id": "x"}], "exits": [{**self.EX, "speed_streams": 4}]}, probe=lambda t, c: UP, apis={},
+                                       curl=lambda e, url, s, write="x": "200 0.1 1250000 1000")
+        mon.check_exits()
+        self.assertEqual(mon.snapshot()["exits"][0]["speed_mbit"], 40.0)
+        seen = []
+        real = topology.subprocess.run
+        def fake(args, **kw):
+            seen.append(args)
+            return topology.subprocess.CompletedProcess(args, 0, "200 0.1 1 1", "")
+        topology.subprocess.run = fake
+        try:
+            topology.exit_curl(ex, ex["speed"], 5)
+            topology.exit_curl(ex, ex["check"], 5)
+        finally:
+            topology.subprocess.run = real
+        self.assertIn("0-999", seen[0])
+        self.assertNotIn("-r", seen[1])
+
+    def test_active_exit_is_found_by_comparing_ips(self):
+        def curl(ex, url, s, write="x"):
+            if not write:
+                return "1.1.1.1\n" if ex["proxy"] == "socks5h://127.0.0.1:1" else "2.2.2.2\n"
+            return "200 0.1 1000000 1000"
+        common = {**self.EX, "speed": "", "active_via": "socks5h://127.0.0.1:3"}
+        def shared(ex, url, s, write="x"):
+            if not write and ex["proxy"] == "socks5h://127.0.0.1:3":
+                return "2.2.2.2"
+            return curl(ex, url, s, write)
+        mon = topology.TopologyMonitor({"nodes": [{"id": "x"}], "exits": [
+            {**common, "id": "main", "proxy": "socks5h://127.0.0.1:1"},
+            {**common, "id": "spare", "proxy": "socks5h://127.0.0.1:2", "backup": True}]}, probe=lambda t, c: UP, apis={}, curl=shared)
+        mon.check_exits()
+        rows = {e["id"]: e for e in mon.snapshot()["exits"]}
+        self.assertEqual((rows["main"]["active"], rows["spare"]["active"], rows["spare"]["backup"]), (False, True, True))
+
+    def test_unknown_when_an_ip_cannot_be_read(self):
+        def curl(ex, url, s, write="x"):
+            return None if not write else "200 0.1 1000000 1000"
+        mon = self.monitor(curl, active_via="socks5h://127.0.0.1:3", speed="")
+        mon.check_exits()
+        self.assertIsNone(self.status(mon)["active"])
+        self.assertNotIn("active_via", self.status(mon))
+
+    def test_purpose_is_shown(self):
+        mon = self.monitor(lambda ex, url, s, write="x": "200 0.1 1000000 1000", purpose="Video")
+        self.assertEqual(self.status(mon)["purpose"], "Video")
+
+    def test_speed_history_survives_a_restart(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmp:
+            path = str(Path(tmp) / "exits.json")
+            cfg = {"nodes": [{"id": "x"}], "exits": [self.EX], "state_file": path}
+            mon = topology.TopologyMonitor(cfg, probe=lambda t, c: UP, apis={}, curl=lambda e, u, s, write="x": "200 0.1 1250000 1000")
+            mon.check_exits()
+            again = topology.TopologyMonitor(cfg, probe=lambda t, c: UP, apis={}, curl=lambda e, u, s, write="x": None)
+            self.assertEqual(again.exit_status["a"]["speeds"], [10.0])
+            self.assertTrue(again.exit_status["a"]["speed_ts"])
+
+    def test_no_speed_shown_while_not_answering(self):
+        replies = ["200 0.1 1250000 1000"]
+        mon = self.monitor(lambda e, u, s, write="x": replies[0])
+        mon.check_exits()
+        replies[0] = "000 0 0 0"
+        mon.check_exits()
+        self.assertIsNone(self.status(mon)["speed_mbit"])
+
+    def test_probe_requires_ssh(self):
+        with self.assertRaises(ValueError):
+            topology.clean_exits([{**self.EX, "probe": "my-probe"}])
+
+    def test_rejects_unsafe_values(self):
+        for extra in ({"proxy": "socks5://h:1; reboot"}, {"ssh": "-oProxyCommand=x"}, {"check": "https://a/ b"}, {"nope": 1}):
+            with self.assertRaises(ValueError):
+                topology.clean_exits([{**self.EX, **extra}])
+
+
 if __name__ == "__main__":
     unittest.main()

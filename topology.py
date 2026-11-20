@@ -8,6 +8,9 @@ from here": it covers the path and the node together.
 Optionally, Keenetic/Netcraze routers with an `api` address are read over their
 web API, with GET requests only: tunnel state for the links (the link's colour then
 shows what the tunnel reports, not the ping) and CPU, memory and uptime for the node.
+
+Exits ([[topology.exits]]) are public VPNs and proxies, shown in a table: each is checked
+with a real request through it, so a tunnel that is up but useless still shows as a problem.
 """
 import hashlib
 import http.cookiejar
@@ -15,6 +18,8 @@ import json
 import logging
 import os
 import re
+import shlex
+import statistics
 import subprocess
 import threading
 import time
@@ -34,9 +39,21 @@ TOPOLOGY_DEFAULTS = {
     "handshake_max": 300,  # a WireGuard handshake older than this means the tunnel is down
     "credentials": "~/.config/hwdash/topology.cred",  # "user:password" for router APIs, mode 600
     "nodes": [],
+    "exits": [],
+    "exit_interval": 60,    # seconds between checks through each exit
+    "speed_interval": 3600,  # seconds between speed samples
+    "geo_interval": 900,    # seconds between exit location lookups
+    "geo_url": "https://ipinfo.io/json",
+    "state_file": "",  # keeps speed history across restarts, e.g. "~/.local/share/hwdash/exits.json"
+    "ip_url": "https://api.ipify.org",  # plain-text IP echo, used to see which exit a shared port uses
 }
+EXIT_FIELDS = {"id", "title", "at", "proxy", "ssh", "probe", "check", "speed", "speed_streams", "speed_bytes",
+               "lag_warn_ms", "speed_warn_mbit", "active_via", "backup", "purpose"}
 NODE_FIELDS = {"id", "title", "subtitle", "group", "ping", "parent", "link", "optional",
                "api", "tunnel_if", "tunnel_user"}
+_URL = re.compile(r"^https?://[A-Za-z0-9._~:/?#\[\]@!$&()*+,;=%-]+$")
+_PROXY = re.compile(r"^(socks5h?|https?)://[A-Za-z0-9.-]+:\d+$")
+_SSH_HOST = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
 _API = re.compile(r"^https?://[A-Za-z0-9.:\[\]-]+$")
 FAILS_FOR_DOWN = 2       # full-loss checks in a row before a node is reported down
 _TARGET = re.compile(r"^[A-Za-z0-9][A-Za-z0-9.:-]*$")
@@ -78,6 +95,91 @@ def clean_nodes(nodes):
             walked.add(cur["id"])
             cur = by_id[cur["parent"]]
     return out
+
+
+def clean_exits(exits):
+    """Validated copies of the configured exits; their values end up on command lines."""
+    out, seen = [], set()
+    for e in exits:
+        unknown = set(e) - EXIT_FIELDS
+        if unknown:
+            raise ValueError(f"unknown exit fields: {', '.join(sorted(unknown))}")
+        eid = str(e.get("id", ""))
+        if not eid or eid in seen:
+            raise ValueError(f"exit id is empty or repeated: {eid!r}")
+        seen.add(eid)
+        check, speed, proxy, ssh = (str(e.get(k, "")) for k in ("check", "speed", "proxy", "ssh"))
+        if not _URL.match(check) or (speed and not _URL.match(speed)):
+            raise ValueError(f"exit {eid}: bad check or speed url")
+        if (proxy and not _PROXY.match(proxy)) or (ssh and not _SSH_HOST.match(ssh)):
+            raise ValueError(f"exit {eid}: bad proxy or ssh host")
+        active_via = str(e.get("active_via", ""))
+        if active_via and not _PROXY.match(active_via):
+            raise ValueError(f"exit {eid}: bad active_via")
+        probe = str(e.get("probe", ""))
+        if probe and (not ssh or not _SSH_HOST.match(probe)):
+            raise ValueError(f"exit {eid}: probe needs an ssh host and a plain command name")
+        out.append({"id": eid, "title": str(e.get("title", eid)), "at": str(e.get("at", "")), "proxy": proxy, "ssh": ssh, "probe": probe,
+                    "active_via": active_via, "backup": bool(e.get("backup", False)), "purpose": str(e.get("purpose", "")),
+                    "check": check, "speed": speed, "speed_streams": max(1, int(e.get("speed_streams", 1))),
+                    "speed_bytes": max(0, int(e.get("speed_bytes", 0))), "lag_warn_ms": float(e.get("lag_warn_ms", 1500)),
+                    "speed_warn_mbit": float(e.get("speed_warn_mbit", 2))})
+    return out
+
+
+def exit_curl(ex, url, seconds, write="%{http_code} %{time_starttransfer} %{speed_download} %{size_download}"):
+    """curl through an exit, locally or on its ssh host: stdout, or None when it could not run.
+
+    With `probe`, the remote side is a fixed script (a forced command for a restricted key)
+    that takes only "check", "speed" or "geo" and has its own urls.
+    """
+    args = ["curl", "-s", "-m", str(seconds)]
+    args += ["--proxy", ex["proxy"]] if ex["proxy"] else ["--noproxy", "*"]
+    if url == ex["speed"] and ex["speed_bytes"]:
+        args += ["-r", f"0-{ex['speed_bytes'] - 1}"]
+    args += ["-o", "/dev/null", "-w", write, url] if write else [url]
+    if ex["probe"]:
+        kind = "check" if url == ex["check"] else "speed" if url == ex["speed"] else "geo"
+        args = ["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=8", ex["ssh"], f"{ex['probe']} {kind}"]
+    elif ex["ssh"]:
+        args = ["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=8", ex["ssh"], shlex.join(args)]
+    try:
+        res = subprocess.run(args, capture_output=True, text=True, timeout=seconds + 15)
+    except (OSError, subprocess.TimeoutExpired) as e:
+        log.info("exit %s: %s", ex["id"], type(e).__name__)
+        return None
+    return res.stdout
+
+
+def parse_curl(text):
+    """(http code, seconds to first byte, Mbit/s, bytes); code 0 means the request failed."""
+    try:
+        code, ttfb, speed, size = (text or "").split()[:4]
+        return int(code), float(ttfb), float(speed) * 8 / 1e6, int(float(size))
+    except ValueError:
+        return 0, None, None, 0
+
+
+def usual_speed(st):
+    """Median of earlier samples, once there are enough of them to mean something."""
+    history = st["speeds"][:-1]
+    return statistics.median(history) if len(history) >= 6 else None
+
+
+def exit_state(ex, st):
+    """(state, reason) for an exit: "speed" is below the threshold, "drop" is below half of its usual."""
+    if st["fails"]:
+        return ("down" if st["fails"] >= FAILS_FOR_DOWN else "degraded"), "no_answer"
+    if st["lag_ms"] is not None and st["lag_ms"] > ex["lag_warn_ms"]:
+        return "degraded", "lag"
+    speed = st["speed_mbit"]
+    if speed is not None:
+        usual = usual_speed(st)
+        if speed < ex["speed_warn_mbit"]:
+            return "degraded", "speed"
+        if usual and speed < usual / 2:
+            return "degraded", "drop"
+    return "up", ""
 
 
 def parse_ping(text):
@@ -182,9 +284,14 @@ def router_status(system):
 
 
 class TopologyMonitor:
-    def __init__(self, cfg, probe=ping, apis=None):
+    def __init__(self, cfg, probe=ping, apis=None, curl=exit_curl):
         self.cfg = {**TOPOLOGY_DEFAULTS, **cfg}
         self.nodes = clean_nodes(self.cfg["nodes"])
+        self.exits = clean_exits(self.cfg["exits"])
+        self.curl = curl
+        self.exit_status = {e["id"]: {"state": "unknown", "reason": "", "fails": 0, "lag_ms": None, "speed_mbit": None,
+                                      "speeds": [], "speed_ts": 0, "geo": None, "geo_ts": 0, "checked": 0, "since": None, "active": None}
+                            for e in self.exits}
         self.probe = probe
         self.lock = threading.Lock()
         self.ts = 0
@@ -195,6 +302,35 @@ class TopologyMonitor:
         self.status = {n["id"]: {"state": "unknown", "since": None, "fails": 0, "loss": None,
                                  "rtt_min": None, "rtt_avg": None, "rtt_max": None, "last_ok": None}
                        for n in self.nodes}
+        self._load_speeds()
+
+    def _state_path(self):
+        return Path(self.cfg["state_file"]).expanduser() if self.cfg["state_file"] else None
+
+    def _load_speeds(self):
+        path = self._state_path()
+        try:
+            saved = json.loads(path.read_text()) if path else {}
+        except (OSError, ValueError):
+            return
+        for eid, s in saved.items():
+            if eid in self.exit_status and isinstance(s, dict):
+                speeds = [float(x) for x in s.get("speeds", []) if isinstance(x, (int, float))][-24:]
+                self.exit_status[eid].update(speeds=speeds, speed_mbit=speeds[-1] if speeds else None,
+                                             speed_ts=int(s.get("speed_ts", 0)))
+
+    def _save_speeds(self):
+        path = self._state_path()
+        if not path:
+            return
+        data = {eid: {"speeds": st["speeds"], "speed_ts": st["speed_ts"]} for eid, st in self.exit_status.items()}
+        try:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            tmp = path.with_suffix(".tmp")
+            tmp.write_text(json.dumps(data))
+            tmp.replace(path)
+        except OSError as e:
+            log.warning("topology: cannot save %s: %s", path, e)
 
     def check_once(self):
         targets = [n for n in self.nodes if n["ping"]]
@@ -264,8 +400,63 @@ class TopologyMonitor:
                 status["tx_bps"] = round((tx - prev[2]) * 8 / (now - prev[0]))
         return status
 
+    def check_exit(self, ex, now):
+        """One round for one exit: the check, and the location when it is due."""
+        st = self.exit_status[ex["id"]]
+        code, ttfb, _, _ = parse_curl(self.curl(ex, ex["check"], 15))
+        updates = {"checked": int(now), "fails": 0 if code else st["fails"] + 1, "lag_ms": round(ttfb * 1000) if code else None}
+        if ex["active_via"]:
+            updates["active"] = self._is_active(ex)
+        # An exit applied by routing only covers its own domains, so a lookup would show this machine instead.
+        if code and (ex["proxy"] or ex["probe"]) and now - st["geo_ts"] >= self.cfg["geo_interval"]:
+            try:
+                info = json.loads(self.curl(ex, self.cfg["geo_url"], 15, write="") or "")
+                updates.update(geo={k: info.get(k) for k in ("ip", "city", "country", "org")}, geo_ts=int(now))
+            except ValueError:
+                pass  # no location this round: keep the last one
+        with self.lock:
+            st.update(updates)
+            self._update_exit_state(ex, st, now)
+
+    def _is_active(self, ex):
+        """True if the shared port leaves through this exit, None if either IP could not be read."""
+        ours = (self.curl(ex, self.cfg["ip_url"], 12, write="") or "").strip()
+        shared = (self.curl({**ex, "proxy": ex["active_via"]}, self.cfg["ip_url"], 12, write="") or "").strip()
+        return ours == shared if ours and shared else None
+
+    def _update_exit_state(self, ex, st, now):
+        state, reason = exit_state(ex, st)
+        if state != st["state"]:
+            st["since"] = int(now)
+        st.update(state=state, reason=reason)
+
+    def measure_speed(self, ex, now):
+        # Several connections at once, like speed test sites: one connection through a VPN is often capped.
+        with ThreadPoolExecutor(max_workers=ex["speed_streams"]) as pool:
+            samples = list(pool.map(lambda _: parse_curl(self.curl(ex, ex["speed"], 25)), range(ex["speed_streams"])))
+        speed = sum(mbit for got, _, mbit, size in samples if got and size)
+        with self.lock:
+            st = self.exit_status[ex["id"]]
+            st.update(speed_mbit=speed, speed_ts=int(now), speeds=(st["speeds"] + [speed])[-24:])
+            self._update_exit_state(ex, st, now)
+            self._save_speeds()
+
+    def check_exits(self):
+        if not self.exits:
+            return
+        now = time.time()
+        with ThreadPoolExecutor(max_workers=len(self.exits)) as pool:
+            list(pool.map(lambda ex: self.check_exit(ex, now), self.exits))
+        # One at a time: exits often share an uplink, and parallel downloads would measure each other.
+        for ex in self.exits:
+            st = self.exit_status[ex["id"]]
+            if ex["speed"] and not st["fails"] and time.time() - st["speed_ts"] >= self.cfg["speed_interval"]:
+                self.measure_speed(ex, time.time())
+
     def snapshot(self):
         by_id = {n["id"]: n for n in self.nodes}
+        now = int(time.time())
+        fresh_for = 3 * int(self.cfg["exit_interval"])
         with self.lock:
             nodes = []
             for n in self.nodes:
@@ -282,7 +473,22 @@ class TopologyMonitor:
                               "state": node_state, "blocked": blocked, "tunnel": tunnel, "router": self.routers.get(n["id"]),
                               "link_state": tunnel["state"] if tunnel else node_state})
             return {"ts": self.ts, "api_ts": self.api_ts, "now": int(time.time()),
-                    "interval": int(self.cfg["interval"]), "api_interval": int(self.cfg["api_interval"]), "nodes": nodes}
+                    "interval": int(self.cfg["interval"]), "api_interval": int(self.cfg["api_interval"]), "nodes": nodes,
+                    # Proxy addresses, ssh hosts and check urls stay on the server.
+                    "exits": [self._public_exit(e, now, fresh_for) for e in self.exits]}
+
+    def _public_exit(self, ex, now, fresh_for):
+        raw = self.exit_status[ex["id"]]
+        st = {k: v for k, v in raw.items() if k not in ("fails", "speeds", "geo_ts")}
+        st["speed_usual"] = usual_speed(raw)
+        if raw["fails"]:  # an old sample is not the speed of a channel that does not answer now
+            st["speed_mbit"] = None
+        if st["checked"] and now - st["checked"] > fresh_for:  # the checks stopped: do not keep showing the last state
+            st.update(state="unknown", reason="")
+        lag, speed = st["lag_ms"], st["speed_mbit"]
+        return {"id": ex["id"], "title": ex["title"], "at": ex["at"], "backup": ex["backup"], "purpose": ex["purpose"], **st,
+                "lag_bad": lag is not None and lag > ex["lag_warn_ms"],
+                "speed_bad": speed is not None and speed < ex["speed_warn_mbit"]}
 
     def _loop(self):
         while True:
@@ -301,8 +507,19 @@ class TopologyMonitor:
                 log.exception("topology router read failed")
             time.sleep(max(5.0, float(self.cfg["api_interval"])))
 
+    def _exit_loop(self):
+        while True:
+            started = time.monotonic()
+            try:
+                self.check_exits()
+            except Exception:
+                log.exception("topology exit check failed")
+            time.sleep(max(5.0, float(self.cfg["exit_interval"]) - (time.monotonic() - started)))
+
     def start(self):
         threading.Thread(target=self._loop, daemon=True).start()
+        if self.exits:
+            threading.Thread(target=self._exit_loop, daemon=True).start()
         if self.apis:
             threading.Thread(target=self._api_loop, daemon=True).start()
 
@@ -319,9 +536,25 @@ _DEMO_RESULTS = {"hub": (0.0, 0.4, 0.6, 0.9), "vps": (0.0, 41.0, 44.0, 52.0), "b
                  "cabin": (33.3, 60.0, 80.0, 140.0), "laptop": (100.0, None, None, None)}
 
 
+DEMO_EXITS = [
+    {"id": "vpn1", "title": "VPN one", "at": "vps", "check": "https://example.com/"},
+    {"id": "vpn2", "title": "VPN two", "at": "vps", "check": "https://example.com/"},
+    {"id": "hub-vpn", "title": "Proxy", "at": "hub", "check": "https://example.com/"},
+]
+_DEMO_EXITS = {
+    "vpn1": {"state": "up", "lag_ms": 210, "speed_mbit": 61.0, "geo": {"city": "Frankfurt", "country": "DE", "org": "Example Net"}},
+    "vpn2": {"state": "degraded", "reason": "speed", "lag_ms": 700, "speed_mbit": 0.6, "geo": {"city": "Stockholm", "country": "SE", "org": "Example Net"}},
+    "hub-vpn": {"state": "up", "lag_ms": 320, "speed_mbit": 18.0, "geo": {"city": "Warsaw", "country": "PL", "org": "Example Net"}},
+}
+
+
 def make_demo(cfg):
     """A monitor over made-up nodes and results; never touches the network."""
-    mon = TopologyMonitor({**cfg, "enabled": True, "nodes": DEMO_NODES}, probe=lambda target, count: _DEMO_RESULTS[target], apis={})
+    mon = TopologyMonitor({**cfg, "enabled": True, "nodes": DEMO_NODES, "exits": DEMO_EXITS},
+                          probe=lambda target, count: _DEMO_RESULTS[target], apis={},
+                          curl=lambda ex, url, seconds, write="x": None)
+    for eid, extra in _DEMO_EXITS.items():
+        mon.exit_status[eid].update(checked=int(time.time()), **extra)
     for _ in range(FAILS_FOR_DOWN):
         mon.check_once()
     mon.routers = {"hub": {"cpu": 12, "mem": 41, "uptime": 950000}, "branch": {"cpu": 38, "mem": 55, "uptime": 86400}}
