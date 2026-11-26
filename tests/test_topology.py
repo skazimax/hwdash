@@ -360,6 +360,29 @@ class ExitTest(unittest.TestCase):
             self.assertEqual(again.exit_status["a"]["speeds"], [10.0])
             self.assertTrue(again.exit_status["a"]["speed_ts"])
 
+    def test_last_good_survives_a_dead_link_and_a_restart(self):
+        import tempfile
+        answer = ["200 0.1 1250000 1000"]
+        with tempfile.TemporaryDirectory() as tmp:
+            cfg = {"nodes": [{"id": "x"}], "exits": [self.EX], "state_file": str(Path(tmp) / "exits.json")}
+            curl = lambda e, u, s, write="x": answer[0]
+            mon = topology.TopologyMonitor(cfg, probe=lambda t, c: UP, apis={}, curl=curl)
+            mon.check_exits()
+            first = self.status(mon)["last_good"]
+            self.assertTrue(first)
+            answer[0] = "000 0 0 0"
+            mon.check_exits()
+            self.assertEqual(self.status(mon)["last_good"], first)
+            again = topology.TopologyMonitor(cfg, probe=lambda t, c: UP, apis={}, curl=curl)
+            self.assertEqual(self.status(again)["last_good"], first)
+
+    def test_last_good_comes_from_an_old_speed_test(self):
+        mon = self.monitor(lambda e, u, s, write="x": "000 0 0 0")
+        mon.exit_status["a"].update(speeds=[20.0], speed_ts=1000)
+        self.assertEqual(self.status(mon)["last_good"], 1000)
+        mon.exit_status["a"].update(last_ok=1500, speeds=[20.0, 0.0], speed_ts=2000)
+        self.assertEqual(self.status(mon)["last_good"], 1500)
+
     def test_no_speed_shown_while_not_answering(self):
         replies = ["200 0.1 1250000 1000"]
         mon = self.monitor(lambda e, u, s, write="x": replies[0])

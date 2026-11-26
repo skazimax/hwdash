@@ -290,7 +290,7 @@ class TopologyMonitor:
         self.exits = clean_exits(self.cfg["exits"])
         self.curl = curl
         self.exit_status = {e["id"]: {"state": "unknown", "reason": "", "fails": 0, "lag_ms": None, "speed_mbit": None,
-                                      "speeds": [], "speed_ts": 0, "geo": None, "geo_ts": 0, "checked": 0, "since": None, "active": None}
+                                      "speeds": [], "speed_ts": 0, "geo": None, "geo_ts": 0, "checked": 0, "since": None, "active": None, "last_ok": None}
                             for e in self.exits}
         self.probe = probe
         self.lock = threading.Lock()
@@ -318,12 +318,14 @@ class TopologyMonitor:
                 speeds = [float(x) for x in s.get("speeds", []) if isinstance(x, (int, float))][-24:]
                 self.exit_status[eid].update(speeds=speeds, speed_mbit=speeds[-1] if speeds else None,
                                              speed_ts=int(s.get("speed_ts", 0)))
+                if isinstance(s.get("last_ok"), (int, float)):
+                    self.exit_status[eid]["last_ok"] = int(s["last_ok"])
 
     def _save_speeds(self):
         path = self._state_path()
         if not path:
             return
-        data = {eid: {"speeds": st["speeds"], "speed_ts": st["speed_ts"]} for eid, st in self.exit_status.items()}
+        data = {eid: {k: st[k] for k in ("speeds", "speed_ts", "last_ok")} for eid, st in self.exit_status.items()}
         try:
             path.parent.mkdir(parents=True, exist_ok=True)
             tmp = path.with_suffix(".tmp")
@@ -405,6 +407,8 @@ class TopologyMonitor:
         st = self.exit_status[ex["id"]]
         code, ttfb, _, _ = parse_curl(self.curl(ex, ex["check"], 15))
         updates = {"checked": int(now), "fails": 0 if code else st["fails"] + 1, "lag_ms": round(ttfb * 1000) if code else None}
+        if code:
+            updates["last_ok"] = int(now)
         if ex["active_via"]:
             updates["active"] = self._is_active(ex)
         # An exit applied by routing only covers its own domains, so a lookup would show this machine instead.
@@ -438,6 +442,8 @@ class TopologyMonitor:
         with self.lock:
             st = self.exit_status[ex["id"]]
             st.update(speed_mbit=speed, speed_ts=int(now), speeds=(st["speeds"] + [speed])[-24:])
+            if speed > 0:
+                st["last_ok"] = max(st["last_ok"] or 0, int(now))
             self._update_exit_state(ex, st, now)
             self._save_speeds()
 
@@ -447,6 +453,8 @@ class TopologyMonitor:
         now = time.time()
         with ThreadPoolExecutor(max_workers=len(self.exits)) as pool:
             list(pool.map(lambda ex: self.check_exit(ex, now), self.exits))
+        with self.lock:
+            self._save_speeds()  # keeps the last answer across restarts
         # One at a time: exits often share an uplink, and parallel downloads would measure each other.
         for ex in self.exits:
             st = self.exit_status[ex["id"]]
@@ -487,6 +495,8 @@ class TopologyMonitor:
             st.update(state="unknown", reason="")
         lag, speed = st["lag_ms"], st["speed_mbit"]
         return {"id": ex["id"], "title": ex["title"], "at": ex["at"], "backup": ex["backup"], "purpose": ex["purpose"], **st,
+                # The last time the link worked: a check that answered or a speed test that got data.
+                "last_good": max(raw["last_ok"] or 0, raw["speed_ts"] if raw["speeds"] and raw["speeds"][-1] > 0 else 0) or None,
                 "lag_bad": lag is not None and lag > ex["lag_warn_ms"],
                 "speed_bad": speed is not None and speed < ex["speed_warn_mbit"]}
 

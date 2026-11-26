@@ -234,7 +234,7 @@ dialog::backdrop { background: rgba(0, 0, 0, .6); }
 .net-stale .net-node .dot, .net-stale .net-link .wire { opacity: .45; }
 .net-stale .net-node rect { stroke: var(--faint); }
 .exit-table { border: 1px solid var(--line); border-radius: 12px; overflow-x: auto; }
-.exit-row { display: grid; grid-template-columns: 170px 220px 190px minmax(130px, 1fr) 90px 110px; gap: 8px; padding: 10px 16px; font-size: 14px;
+.exit-row { display: grid; grid-template-columns: 170px 220px 190px minmax(130px, 1fr) 90px 110px 110px; gap: 8px; padding: 10px 16px; font-size: 14px;
   min-width: 940px; border-top: 1px solid var(--line); color: var(--text); font-variant-numeric: tabular-nums; }
 .exit-row:first-child { border-top: 0; }
 .exit-row.head { font-size: 12px; color: var(--muted); }
@@ -243,7 +243,7 @@ dialog::backdrop { background: rgba(0, 0, 0, .6); }
 .exit-row.st-down .st { color: var(--hot); } .exit-row.st-unknown .st { color: var(--faint); }
 .exit-row .bad { color: var(--warm); font-weight: 600; }
 .exit-row.st-down .bad { color: var(--hot); }
-.exit-group { padding: 8px 16px; font-size: 12px; font-weight: 600; letter-spacing: .04em; color: var(--muted); background: var(--card); border-top: 1px solid var(--line); min-width: 940px; }
+.exit-group { padding: 8px 16px; font-size: 12px; font-weight: 600; letter-spacing: .04em; color: var(--muted); background: var(--card); border-top: 1px solid var(--line); min-width: 1060px; }
 .exit-row .geo { color: var(--muted); }
 .exit-row .act { color: var(--ok); font-size: 12px; }
 .exit-row .usual { display: block; color: var(--muted); font-size: 11px; font-weight: 400; }
@@ -1174,7 +1174,7 @@ Object.assign(I18N.en, {
   n_pick: "Select a node or a link to see details.", n_link: "Link to {p}", n_type: "Link", n_group: "Group", n_address: "Address",
   n_rtt: "RTT min / avg / max", n_loss: "Loss", n_since: "State since", n_last: "Last reply", n_target: "Checked by", n_ping: "ping {t}",
   n_noprobe: "Not checked: no address to ping.", n_blocked: "Unknown: the node it is reached through is down.",
-  n_r_lag: "high lag", n_r_speed: "low speed", n_r_drop: "speed dropped", n_usual: "usually {v}", n_r_no_answer: "no answer", n_lag: "Lag", n_speed: "Speed", n_geo: "Exit", n_vpn: "VPN", n_purpose: "Purpose", n_exits: "Internet exits", n_backup: "backup", n_active: "active", n_on_backup: "on backup",
+  n_r_lag: "high lag", n_r_speed: "low speed", n_r_drop: "speed dropped", n_usual: "usually {v}", n_r_no_answer: "no answer", n_lag: "Lag", n_speed: "Speed", n_geo: "Exit", n_vpn: "VPN", n_purpose: "Purpose", n_exits: "Internet exits", n_backup: "backup", n_active: "active", n_on_backup: "on backup", n_last_act: "Last alive", n_now: "now", n_ago_m: "{v} min ago", n_ago_h: "{v} h ago", n_never: "no data",
   n_ms: "ms", n_cpu: "Router CPU", n_mem: "Router memory", n_up_t: "Router uptime",
   n_hs: "Last handshake", n_ago: "{s} s ago", n_session: "Session", n_nosession: "no session", n_from: "From the node", n_to: "To the node",
   n_src: "Link state comes from the router; node state from ping.", n_mbit: "Mbit/s", n_d: "d", n_h: "h", n_m: "min",
@@ -1186,7 +1186,7 @@ Object.assign(I18N.ru, {
   n_pick: "Выберите узел или линк, чтобы увидеть детали.", n_link: "Линк до узла {p}", n_type: "Линк", n_group: "Группа", n_address: "Адрес",
   n_rtt: "RTT мин / сред / макс", n_loss: "Потери", n_since: "Состояние с", n_last: "Последний ответ", n_target: "Проверка", n_ping: "ping {t}",
   n_noprobe: "Не проверяется: нет адреса для пинга.", n_blocked: "Неизвестно: узел, через который он доступен, не работает.",
-  n_r_lag: "высокий лаг", n_r_speed: "низкая скорость", n_r_drop: "скорость упала", n_usual: "обычно {v}", n_r_no_answer: "нет ответа", n_lag: "Лаг", n_speed: "Скорость", n_geo: "Выход", n_vpn: "VPN", n_purpose: "Назначение", n_exits: "Выходы в интернет", n_backup: "резерв", n_active: "активен", n_on_backup: "на резерве",
+  n_r_lag: "высокий лаг", n_r_speed: "низкая скорость", n_r_drop: "скорость упала", n_usual: "обычно {v}", n_r_no_answer: "нет ответа", n_lag: "Лаг", n_speed: "Скорость", n_geo: "Выход", n_vpn: "VPN", n_purpose: "Назначение", n_exits: "Выходы в интернет", n_backup: "резерв", n_active: "активен", n_on_backup: "на резерве", n_last_act: "Был жив", n_now: "сейчас", n_ago_m: "{v} мин назад", n_ago_h: "{v} ч назад", n_never: "нет данных",
   n_ms: "мс", n_cpu: "CPU роутера", n_mem: "Память роутера", n_up_t: "Роутер работает",
   n_hs: "Последний handshake", n_ago: "{s} с назад", n_session: "Сессия", n_nosession: "нет сессии", n_from: "От узла", n_to: "К узлу",
   n_src: "Цвет линка показывает состояние туннеля на роутере, цвет узла — пинг.", n_mbit: "Мбит/с", n_d: "д", n_h: "ч", n_m: "мин",
@@ -1254,13 +1254,20 @@ function netExits() {
     const onBackup = e.backup && e.active === true;
     const status = onBackup ? `! ${t("n_on_backup")}` : `${NET_GLYPH[e.state]} ${e.reason ? t("n_r_" + e.reason) : t("n_" + e.state)}`;
     const name = `${esc(e.title)}${e.backup ? ` · ${esc(t("n_backup"))}` : ""}${e.active === true ? ` <span class="act">● ${esc(t("n_active"))}</span>` : ""}`;
+    // How long a dead link has been dead: the last check or speed test that worked.
+    const lastTs = e.last_good;
+    const isNow = e.reason !== "no_answer" && e.state !== "unknown" && lastTs && net.now - lastTs < 180;
+    const ago = (ts) => { const s = net.now - ts; return s < 3600 ? t("n_ago_m", { v: Math.max(1, Math.round(s / 60)) }) : s < 86400 ? t("n_ago_h", { v: Math.round(s / 3600) })
+      : new Date(ts * 1000).toLocaleString(LANG, { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }); };
+    const last = isNow ? t("n_now") : lastTs ? ago(lastTs) : t("n_never");
     return `<div class="exit-row st-${onBackup ? "degraded" : e.state}"><span class="st">${esc(status)}</span>
       <span>${name}</span><span class="geo">${esc(e.purpose || "—")}</span><span class="geo">${esc(geo)}</span>
       <span${bad(e.lag_bad)}>${e.lag_ms != null ? `${e.lag_ms} ${t("n_ms")}` : "—"}</span>
-      <span${bad(e.speed_bad || e.reason === "drop")}>${e.speed_mbit != null ? `${e.speed_mbit.toFixed(1)} ${t("n_mbit")}` : "—"}${e.speed_usual != null && e.speed_mbit != null ? `<span class="usual">${esc(t("n_usual", { v: Math.round(e.speed_usual) }))}</span>` : ""}</span></div>`;
+      <span${bad(e.speed_bad || e.reason === "drop")}>${e.speed_mbit != null ? `${e.speed_mbit.toFixed(1)} ${t("n_mbit")}` : "—"}${e.speed_usual != null && e.speed_mbit != null ? `<span class="usual">${esc(t("n_usual", { v: Math.round(e.speed_usual) }))}</span>` : ""}</span>
+      <span class="${isNow ? "" : "geo"}">${esc(last)}</span></div>`;
   };
   const body = [...groups].map(([at, list]) => `<div class="exit-group">${esc(place(at))}</div>${list.map(row).join("")}`).join("");
-  box.innerHTML = `<h2>${esc(t("n_exits"))}</h2><div class="exit-table"><div class="exit-row head"><span>${esc(t("h_status"))}</span><span>${esc(t("n_vpn"))}</span><span>${esc(t("n_purpose"))}</span><span>${esc(t("n_geo"))}</span><span>${esc(t("n_lag"))}</span><span>${esc(t("n_speed"))}</span></div>${body}</div>`;
+  box.innerHTML = `<h2>${esc(t("n_exits"))}</h2><div class="exit-table"><div class="exit-row head"><span>${esc(t("h_status"))}</span><span>${esc(t("n_vpn"))}</span><span>${esc(t("n_purpose"))}</span><span>${esc(t("n_geo"))}</span><span>${esc(t("n_lag"))}</span><span>${esc(t("n_speed"))}</span><span>${esc(t("n_last_act"))}</span></div>${body}</div>`;
 }
 
 function netPanel() {
